@@ -32,7 +32,6 @@ export const AuthProvider = ({ children }) => {
           setIsAuthenticated(true);
           setAdmin(JSON.parse(adminData));
         } else {
-          // Token is invalid, clear storage
           clearAuthData();
         }
       }
@@ -46,7 +45,7 @@ export const AuthProvider = ({ children }) => {
 
   const verifyToken = async (token) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1'}/auth/me`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -57,11 +56,52 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const login = (token, adminData) => {
-    localStorage.setItem('authToken', token);
-    localStorage.setItem('adminData', JSON.stringify(adminData));
-    setIsAuthenticated(true);
-    setAdmin(adminData);
+  // ✅ THIS IS THE MISSING LOGIN METHOD
+  const login = async (googleCredential) => {
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1'}/auth/google-login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id_token: googleCredential  // ✅ Match backend expectation
+        })
+      });
+
+      // ✅ Handle empty response safely
+      const text = await response.text();
+      let data = {};
+      
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (parseError) {
+        console.error('Failed to parse JSON:', parseError);
+        throw new Error('Invalid response from server');
+      }
+
+      if (!response.ok) {
+        throw new Error(data.detail || `Login failed with status ${response.status}`);
+      }
+
+      // ✅ Store auth data
+      localStorage.setItem('authToken', data.access_token);
+      localStorage.setItem('adminData', JSON.stringify(data.admin));
+      
+      setIsAuthenticated(true);
+      setAdmin(data.admin);
+
+      // ✅ Return response for success callback
+      return {
+        message: data.message,
+        admin: data.admin,
+        accessToken: data.access_token
+      };
+
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
   };
 
   const logout = () => {
@@ -83,7 +123,7 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated,
     admin,
     loading,
-    login,
+    login,     // ✅ Now includes the fetch logic
     logout,
     getToken
   };
