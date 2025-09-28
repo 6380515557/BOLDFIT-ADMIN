@@ -45,7 +45,7 @@ export const AuthProvider = ({ children }) => {
 
   const verifyToken = async (token) => {
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1'}/auth/me`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'https://boltfit-backend-r4no.onrender.com/api/v1'}/auth/me`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -59,7 +59,7 @@ export const AuthProvider = ({ children }) => {
   // ✅ THIS IS THE MISSING LOGIN METHOD
   const login = async (googleCredential) => {
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1'}/auth/google-login`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'https://boltfit-backend-r4no.onrender.com/api/v1'}/auth/google-login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

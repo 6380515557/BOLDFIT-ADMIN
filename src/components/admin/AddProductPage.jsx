@@ -10,7 +10,7 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 
-const API_BASE_URL = "http://localhost:8000/api/v1";
+const API_BASE_URL = "https://boltfit-backend-r4no.onrender.com/api/v1";
 
 // ✅ Replace with your actual ImgBB API key
 const IMGBB_API_KEY = "111466cad6108aa2657663cede57b1d3"; // Get this from https://api.imgbb.com/
