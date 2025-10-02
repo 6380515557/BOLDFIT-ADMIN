@@ -154,9 +154,18 @@ export default function AdminPage() {
     }
   };
 
-  const handleSaveEdit = async () => {
+  // ✅ FIXED: Prevent page refresh and handle edit properly
+  const handleSaveEdit = async (e) => {
+    // Prevent any default form behavior and event bubbling
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
     try {
       setUploading(true);
+      setError(""); // Clear any previous errors
+      
       const token = localStorage.getItem('authToken');
       
       const formData = new FormData();
@@ -189,16 +198,21 @@ export default function AdminPage() {
       });
       
       if (response.ok) {
+        // Close modal first
         setShowEditModal(false);
         setEditForm({});
         setSelectedImages([]);
         setImagePreviews([]);
-        fetchProducts();
+        
+        // Then refresh products without page reload
+        await fetchProducts();
       } else {
-        setError("Failed to update product.");
+        const errorData = await response.json().catch(() => ({}));
+        setError(errorData.message || "Failed to update product.");
       }
-    } catch {
-      setError("Failed to update product.");
+    } catch (err) {
+      console.error('Update error:', err);
+      setError("Failed to update product. Please try again.");
     } finally {
       setUploading(false);
     }
@@ -209,9 +223,7 @@ export default function AdminPage() {
     setShowProductModal(true);
   };
 
-  // ✅ ADD THIS MISSING FUNCTION
   const handleAddProduct = () => {
-    console.log('Navigating to add product page...');
     navigate('/admin/add-product');
   };
 
@@ -247,22 +259,37 @@ export default function AdminPage() {
         </div>
         <div className={styles.mobileCardActions}>
           <button
+            type="button"
             className={`${styles.mobileActionBtn} ${styles.view}`}
-            onClick={() => handleView(product)}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleView(product);
+            }}
             title="View"
           >
             <Eye size={16} />
           </button>
           <button
+            type="button"
             className={`${styles.mobileActionBtn} ${styles.edit}`}
-            onClick={() => handleEdit(product)}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleEdit(product);
+            }}
             title="Edit"
           >
             <Edit3 size={16} />
           </button>
           <button
+            type="button"
             className={`${styles.mobileActionBtn} ${styles.delete}`}
-            onClick={() => handleDelete(product.id)}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleDelete(product.id);
+            }}
             title="Delete"
           >
             <Trash2 size={16} />
@@ -298,287 +325,319 @@ export default function AdminPage() {
     </div>
   );
 
-  // Edit Modal Component
+  // Edit Modal Component - ✅ FIXED: Wrapped in form with onSubmit
   const EditModal = () => (
     <div className={styles.modalOverlay} onClick={() => setShowEditModal(false)}>
       <div className={styles.editModal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.editModalHeader}>
           <h2>Edit Product</h2>
-          <button onClick={() => setShowEditModal(false)} className={styles.closeBtn}>
+          <button 
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowEditModal(false);
+            }} 
+            className={styles.closeBtn}
+          >
             <X size={24} />
           </button>
         </div>
         
-        <div className={styles.editModalContent}>
-          {/* Basic Information */}
-          <div className={styles.formSection}>
-            <h3 className={styles.sectionTitle}>
-              <Package size={20} />
-              Basic Information
-            </h3>
-            <div className={styles.formGrid}>
-              <div className={styles.formGroup}>
-                <label>Product Name *</label>
-                <input
-                  type="text"
-                  value={editForm.name}
-                  onChange={(e) => setEditForm({...editForm, name: e.target.value})}
-                  placeholder="Enter product name"
-                />
-              </div>
-              <div className={styles.formGroup}>
-                <label>Category *</label>
-                <select
-                  value={editForm.category}
-                  onChange={(e) => setEditForm({...editForm, category: e.target.value})}
-                >
-                  {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              </div>
-              <div className={styles.formGroup} style={{gridColumn: '1/-1'}}>
-                <label>Description *</label>
-                <textarea
-                  value={editForm.description}
-                  onChange={(e) => setEditForm({...editForm, description: e.target.value})}
-                  placeholder="Product description"
-                  rows={4}
-                />
+        {/* ✅ FIXED: Wrapped content in form with onSubmit handler */}
+        <form onSubmit={handleSaveEdit}>
+          <div className={styles.editModalContent}>
+            {/* Basic Information */}
+            <div className={styles.formSection}>
+              <h3 className={styles.sectionTitle}>
+                <Package size={20} />
+                Basic Information
+              </h3>
+              <div className={styles.formGrid}>
+                <div className={styles.formGroup}>
+                  <label>Product Name *</label>
+                  <input
+                    type="text"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                    placeholder="Enter product name"
+                    required
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <label>Category *</label>
+                  <select
+                    value={editForm.category}
+                    onChange={(e) => setEditForm({...editForm, category: e.target.value})}
+                    required
+                  >
+                    {categories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className={styles.formGroup} style={{gridColumn: '1/-1'}}>
+                  <label>Description *</label>
+                  <textarea
+                    value={editForm.description}
+                    onChange={(e) => setEditForm({...editForm, description: e.target.value})}
+                    placeholder="Product description"
+                    rows={4}
+                    required
+                  />
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Pricing */}
-          <div className={styles.formSection}>
-            <h3 className={styles.sectionTitle}>
-              <Star size={20} />
-              Pricing
-            </h3>
-            <div className={styles.formGrid}>
-              <div className={styles.formGroup}>
-                <label>Current Price *</label>
-                <input
-                  type="number"
-                  value={editForm.price}
-                  onChange={(e) => setEditForm({...editForm, price: parseFloat(e.target.value)})}
-                  placeholder="0.00"
-                />
+            {/* Pricing */}
+            <div className={styles.formSection}>
+              <h3 className={styles.sectionTitle}>
+                <Star size={20} />
+                Pricing
+              </h3>
+              <div className={styles.formGrid}>
+                <div className={styles.formGroup}>
+                  <label>Current Price *</label>
+                  <input
+                    type="number"
+                    value={editForm.price}
+                    onChange={(e) => setEditForm({...editForm, price: parseFloat(e.target.value)})}
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <label>Original Price</label>
+                  <input
+                    type="number"
+                    value={editForm.original_price}
+                    onChange={(e) => setEditForm({...editForm, original_price: parseFloat(e.target.value)})}
+                    placeholder="0.00"
+                  />
+                </div>
+                {discountPercentage > 0 && (
+                  <div className={styles.discountBadge}>
+                    {discountPercentage}% OFF
+                  </div>
+                )}
               </div>
-              <div className={styles.formGroup}>
-                <label>Original Price</label>
-                <input
-                  type="number"
-                  value={editForm.original_price}
-                  onChange={(e) => setEditForm({...editForm, original_price: parseFloat(e.target.value)})}
-                  placeholder="0.00"
-                />
+            </div>
+
+            {/* Product Details */}
+            <div className={styles.formSection}>
+              <h3 className={styles.sectionTitle}>
+                <TrendingUp size={20} />
+                Product Details
+              </h3>
+              <div className={styles.formGrid}>
+                <div className={styles.formGroup}>
+                  <label>Brand</label>
+                  <input
+                    type="text"
+                    value={editForm.brand}
+                    onChange={(e) => setEditForm({...editForm, brand: e.target.value})}
+                    placeholder="Brand name"
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <label>Material</label>
+                  <input
+                    type="text"
+                    value={editForm.material}
+                    onChange={(e) => setEditForm({...editForm, material: e.target.value})}
+                    placeholder="Material type"
+                  />
+                </div>
+                
+                {/* Sizes */}
+                <div className={styles.formGroup} style={{gridColumn: '1/-1'}}>
+                  <label>Sizes</label>
+                  <input
+                    type="text"
+                    value={editForm.sizes}
+                    onChange={(e) => setEditForm({...editForm, sizes: e.target.value})}
+                    placeholder="XS, S, M, L, XL, XXL"
+                  />
+                  <div className={styles.quickAdd}>
+                    <span>Quick add:</span>
+                    {commonSizes.map(size => (
+                      <button
+                        key={size}
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          addQuickSize(size);
+                        }}
+                        className={styles.quickAddBtn}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Colors */}
+                <div className={styles.formGroup} style={{gridColumn: '1/-1'}}>
+                  <label>Colors</label>
+                  <input
+                    type="text"
+                    value={editForm.colors}
+                    onChange={(e) => setEditForm({...editForm, colors: e.target.value})}
+                    placeholder="Red, Blue, Green, Black"
+                  />
+                  <div className={styles.quickAdd}>
+                    <span>Quick add:</span>
+                    {commonColors.map(color => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          addQuickColor(color);
+                        }}
+                        className={styles.quickAddBtn}
+                      >
+                        {color}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-              {discountPercentage > 0 && (
-                <div className={styles.discountBadge}>
-                  {discountPercentage}% OFF
+            </div>
+
+            {/* Images */}
+            <div className={styles.formSection}>
+              <h3 className={styles.sectionTitle}>
+                <ImageIcon size={20} />
+                Product Images
+              </h3>
+              
+              {/* Existing Images */}
+              {editForm.images?.length > 0 && (
+                <div className={styles.existingImages}>
+                  <h4>Current Images</h4>
+                  <div className={styles.imageGrid}>
+                    {editForm.images.map((img, index) => (
+                      <div key={index} className={styles.imagePreview}>
+                        <img src={img} alt={`Product ${index + 1}`} />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            removeExistingImage(index);
+                          }}
+                          className={styles.removeImageBtn}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Add New Images */}
+              <div className={styles.imageUpload}>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className={styles.fileInput}
+                  id="imageInput"
+                />
+                <label htmlFor="imageInput" className={styles.uploadBtn}>
+                  <Upload size={20} />
+                  {selectedImages.length === 0 ? "Add New Images" : `${selectedImages.length} images selected`}
+                </label>
+              </div>
+
+              {/* New Image Previews */}
+              {imagePreviews.length > 0 && (
+                <div className={styles.newImages}>
+                  <h4>New Images to Add</h4>
+                  <div className={styles.imageGrid}>
+                    {imagePreviews.map((src, index) => (
+                      <div key={index} className={styles.imagePreview}>
+                        <img src={src} alt={`New ${index + 1}`} />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            removeImage(index);
+                          }}
+                          className={styles.removeImageBtn}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
-          </div>
 
-          {/* Product Details */}
-          <div className={styles.formSection}>
-            <h3 className={styles.sectionTitle}>
-              <TrendingUp size={20} />
-              Product Details
-            </h3>
-            <div className={styles.formGrid}>
-              <div className={styles.formGroup}>
-                <label>Brand</label>
-                <input
-                  type="text"
-                  value={editForm.brand}
-                  onChange={(e) => setEditForm({...editForm, brand: e.target.value})}
-                  placeholder="Brand name"
-                />
-              </div>
-              <div className={styles.formGroup}>
-                <label>Material</label>
-                <input
-                  type="text"
-                  value={editForm.material}
-                  onChange={(e) => setEditForm({...editForm, material: e.target.value})}
-                  placeholder="Material type"
-                />
-              </div>
-              
-              {/* Sizes */}
-              <div className={styles.formGroup} style={{gridColumn: '1/-1'}}>
-                <label>Sizes</label>
-                <input
-                  type="text"
-                  value={editForm.sizes}
-                  onChange={(e) => setEditForm({...editForm, sizes: e.target.value})}
-                  placeholder="XS, S, M, L, XL, XXL"
-                />
-                <div className={styles.quickAdd}>
-                  <span>Quick add:</span>
-                  {commonSizes.map(size => (
-                    <button
-                      key={size}
-                      type="button"
-                      onClick={() => addQuickSize(size)}
-                      className={styles.quickAddBtn}
-                    >
-                      {size}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Colors */}
-              <div className={styles.formGroup} style={{gridColumn: '1/-1'}}>
-                <label>Colors</label>
-                <input
-                  type="text"
-                  value={editForm.colors}
-                  onChange={(e) => setEditForm({...editForm, colors: e.target.value})}
-                  placeholder="Red, Blue, Green, Black"
-                />
-                <div className={styles.quickAdd}>
-                  <span>Quick add:</span>
-                  {commonColors.map(color => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => addQuickColor(color)}
-                      className={styles.quickAddBtn}
-                    >
-                      {color}
-                    </button>
-                  ))}
-                </div>
+            {/* Settings */}
+            <div className={styles.formSection}>
+              <h3 className={styles.sectionTitle}>
+                <TrendingUp size={20} />
+                Settings
+              </h3>
+              <div className={styles.toggleGroup}>
+                <label className={styles.toggleLabel}>
+                  <input
+                    type="checkbox"
+                    checked={editForm.is_featured}
+                    onChange={(e) => setEditForm({...editForm, is_featured: e.target.checked})}
+                  />
+                  <span className={styles.toggleSwitch}></span>
+                  Featured Product
+                </label>
+                <label className={styles.toggleLabel}>
+                  <input
+                    type="checkbox"
+                    checked={editForm.is_active}
+                    onChange={(e) => setEditForm({...editForm, is_active: e.target.checked})}
+                  />
+                  <span className={styles.toggleSwitch}></span>
+                  Active Product
+                </label>
               </div>
             </div>
           </div>
 
-          {/* Images */}
-          <div className={styles.formSection}>
-            <h3 className={styles.sectionTitle}>
-              <ImageIcon size={20} />
-              Product Images
-            </h3>
-            
-            {/* Existing Images */}
-            {editForm.images?.length > 0 && (
-              <div className={styles.existingImages}>
-                <h4>Current Images</h4>
-                <div className={styles.imageGrid}>
-                  {editForm.images.map((img, index) => (
-                    <div key={index} className={styles.imagePreview}>
-                      <img src={img} alt={`Product ${index + 1}`} />
-                      <button
-                        type="button"
-                        onClick={() => removeExistingImage(index)}
-                        className={styles.removeImageBtn}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Add New Images */}
-            <div className={styles.imageUpload}>
-              <input
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handleImageChange}
-                className={styles.fileInput}
-                id="imageInput"
-              />
-              <label htmlFor="imageInput" className={styles.uploadBtn}>
-                <Upload size={20} />
-                {selectedImages.length === 0 ? "Add New Images" : `${selectedImages.length} images selected`}
-              </label>
-            </div>
-
-            {/* New Image Previews */}
-            {imagePreviews.length > 0 && (
-              <div className={styles.newImages}>
-                <h4>New Images to Add</h4>
-                <div className={styles.imageGrid}>
-                  {imagePreviews.map((src, index) => (
-                    <div key={index} className={styles.imagePreview}>
-                      <img src={src} alt={`New ${index + 1}`} />
-                      <button
-                        type="button"
-                        onClick={() => removeImage(index)}
-                        className={styles.removeImageBtn}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+          <div className={styles.editModalFooter}>
+            <button 
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setShowEditModal(false);
+              }} 
+              className={styles.cancelBtn}
+              disabled={uploading}
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit"
+              className={styles.saveBtn}
+              disabled={uploading}
+            >
+              {uploading ? (
+                <>
+                  <div className={styles.spinner}></div>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save size={16} />
+                  Save Changes
+                </>
+              )}
+            </button>
           </div>
-
-          {/* Settings */}
-          <div className={styles.formSection}>
-            <h3 className={styles.sectionTitle}>
-              <TrendingUp size={20} />
-              Settings
-            </h3>
-            <div className={styles.toggleGroup}>
-              <label className={styles.toggleLabel}>
-                <input
-                  type="checkbox"
-                  checked={editForm.is_featured}
-                  onChange={(e) => setEditForm({...editForm, is_featured: e.target.checked})}
-                />
-                <span className={styles.toggleSwitch}></span>
-                Featured Product
-              </label>
-              <label className={styles.toggleLabel}>
-                <input
-                  type="checkbox"
-                  checked={editForm.is_active}
-                  onChange={(e) => setEditForm({...editForm, is_active: e.target.checked})}
-                />
-                <span className={styles.toggleSwitch}></span>
-                Active Product
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <div className={styles.editModalFooter}>
-          <button 
-            onClick={() => setShowEditModal(false)} 
-            className={styles.cancelBtn}
-            disabled={uploading}
-          >
-            Cancel
-          </button>
-          <button 
-            onClick={handleSaveEdit} 
-            className={styles.saveBtn}
-            disabled={uploading}
-          >
-            {uploading ? (
-              <>
-                <div className={styles.spinner}></div>
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save size={16} />
-                Save Changes
-              </>
-            )}
-          </button>
-        </div>
+        </form>
       </div>
     </div>
   );
@@ -589,7 +648,7 @@ export default function AdminPage() {
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
           <h3>Product Details</h3>
-          <button onClick={() => setShowProductModal(false)}>×</button>
+          <button type="button" onClick={() => setShowProductModal(false)}>×</button>
         </div>
         <div className={styles.modalContent}>
           {selectedProduct && (
@@ -647,7 +706,7 @@ export default function AdminPage() {
               </div>
             </div>
           )}
-          <button className={styles.logoutBtn} onClick={handleLogout}>
+          <button type="button" className={styles.logoutBtn} onClick={handleLogout}>
             <LogOut size={18} />
           </button>
         </div>
@@ -703,6 +762,7 @@ export default function AdminPage() {
             {["All", ...categories].map((cat) => (
               <button
                 key={cat}
+                type="button"
                 className={`${styles.filterTab} ${
                   selectedCategory === cat ? styles.active : ""
                 }`}
@@ -714,8 +774,7 @@ export default function AdminPage() {
           </div>
         </div>
         
-        {/* ✅ FIX THE ADD BUTTON - ADD onClick HANDLER */}
-        <button className={styles.addButton} onClick={handleAddProduct}>
+        <button type="button" className={styles.addButton} onClick={handleAddProduct}>
           <Plus size={20} />
           {!isMobile && <span>Add Product</span>}
         </button>
@@ -733,7 +792,7 @@ export default function AdminPage() {
         <div className={styles.errorContainer}>
           <div className={styles.errorContent}>
             <p>{error}</p>
-            <button onClick={() => setError("")}>×</button>
+            <button type="button" onClick={() => setError("")}>×</button>
           </div>
         </div>
       )}
@@ -800,6 +859,7 @@ export default function AdminPage() {
                     <td>
                       <div className={styles.actionButtons}>
                         <button
+                          type="button"
                           className={`${styles.actionBtn} ${styles.view}`}
                           onClick={() => handleView(product)}
                           title="View Details"
@@ -807,6 +867,7 @@ export default function AdminPage() {
                           <Eye size={16} />
                         </button>
                         <button
+                          type="button"
                           className={`${styles.actionBtn} ${styles.edit}`}
                           onClick={() => handleEdit(product)}
                           title="Edit Product"
@@ -814,6 +875,7 @@ export default function AdminPage() {
                           <Edit3 size={16} />
                         </button>
                         <button
+                          type="button"
                           className={`${styles.actionBtn} ${styles.delete}`}
                           onClick={() => handleDelete(product.id)}
                           title="Delete Product"
@@ -834,8 +896,7 @@ export default function AdminPage() {
             <Package size={64} />
             <h3>No products found</h3>
             <p>Try adjusting your search or add your first product!</p>
-            {/* ✅ FIX THE EMPTY STATE BUTTON TOO */}
-            <button className={styles.addButton} onClick={handleAddProduct}>
+            <button type="button" className={styles.addButton} onClick={handleAddProduct}>
               <Plus size={20} />
               <span>Add Your First Product</span>
             </button>
@@ -844,8 +905,8 @@ export default function AdminPage() {
       </div>
 
       {/* Modals */}
-      {showProductModal && <ProductModal />}
       {showEditModal && <EditModal />}
+      {showProductModal && <ProductModal />}
     </div>
   );
 }
