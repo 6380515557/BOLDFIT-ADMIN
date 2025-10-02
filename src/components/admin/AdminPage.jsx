@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 
 const API_BASE = "https://boltfit-backend-r4no.onrender.com/api/v1";
+const IMGBB_API_KEY = "111466cad6108aa2657663cede57b1d3"; // Same as AddProductPage
 const categories = ["Shirts", "T-Shirts", "Pants", "Trending"];
 const commonSizes = ["XS", "S", "M", "L", "XL", "XXL"];
 const commonColors = ["Red", "Blue", "Green", "Black", "White", "Gray", "Yellow", "Orange", "Purple", "Pink", "Brown", "Navy"];
@@ -24,10 +25,6 @@ export default function AdminPage() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showProductModal, setShowProductModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm] = useState({});
-  const [uploading, setUploading] = useState(false);
-  const [selectedImages, setSelectedImages] = useState([]);
-  const [imagePreviews, setImagePreviews] = useState([]);
   const [isMobile, setIsMobile] = useState(false);
 
   // Check if mobile
@@ -78,144 +75,8 @@ export default function AdminPage() {
   };
 
   const handleEdit = (product) => {
-    setEditForm({
-      id: product.id,
-      name: product.name || "",
-      description: product.description || "",
-      price: product.price || 0,
-      original_price: product.original_price || "",
-      category: product.category || "Shirts",
-      brand: product.brand || "BOLT FIT",
-      material: product.material || "",
-      is_active: product.is_active || false,
-      is_featured: product.is_featured || false,
-      sizes: product.sizes?.map(s => s.size).join(', ') || "",
-      colors: product.colors?.map(c => c.name).join(', ') || "",
-      images: product.images || []
-    });
-    setSelectedImages([]);
-    setImagePreviews([]);
     setShowEditModal(true);
-  };
-
-  const handleImageChange = (e) => {
-    const files = Array.from(e.target.files);
-    const validFiles = [];
-    const validPreviews = [];
-
-    for (const file of files) {
-      if (!file.type.startsWith('image/')) {
-        setError(`${file.name} is not a valid image file`);
-        continue;
-      }
-      if (file.size > 32 * 1024 * 1024) {
-        setError(`${file.name} is too large (max 32MB)`);
-        continue;
-      }
-      validFiles.push(file);
-      validPreviews.push(URL.createObjectURL(file));
-    }
-
-    setSelectedImages(prev => [...prev, ...validFiles]);
-    setImagePreviews(prev => [...prev, ...validPreviews]);
-  };
-
-  const removeImage = (index) => {
-    const newPreviews = [...imagePreviews];
-    URL.revokeObjectURL(newPreviews[index]);
-    newPreviews.splice(index, 1);
-    
-    const newFiles = [...selectedImages];
-    newFiles.splice(index, 1);
-    
-    setImagePreviews(newPreviews);
-    setSelectedImages(newFiles);
-  };
-
-  const removeExistingImage = (index) => {
-    const newImages = [...editForm.images];
-    newImages.splice(index, 1);
-    setEditForm({ ...editForm, images: newImages });
-  };
-
-  const addQuickSize = (size) => {
-    const currentSizes = editForm.sizes ? editForm.sizes.split(',').map(s => s.trim()) : [];
-    if (!currentSizes.includes(size)) {
-      const newSizes = [...currentSizes, size].join(', ');
-      setEditForm({ ...editForm, sizes: newSizes });
-    }
-  };
-
-  const addQuickColor = (color) => {
-    const currentColors = editForm.colors ? editForm.colors.split(',').map(c => c.trim()) : [];
-    if (!currentColors.includes(color)) {
-      const newColors = [...currentColors, color].join(', ');
-      setEditForm({ ...editForm, colors: newColors });
-    }
-  };
-
-  // ✅ FIXED: Prevent page refresh and handle edit properly
-  const handleSaveEdit = async (e) => {
-    // Prevent any default form behavior and event bubbling
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-
-    try {
-      setUploading(true);
-      setError(""); // Clear any previous errors
-      
-      const token = localStorage.getItem('authToken');
-      
-      const formData = new FormData();
-      formData.append('name', editForm.name);
-      formData.append('description', editForm.description);
-      formData.append('price', editForm.price);
-      formData.append('original_price', editForm.original_price || '');
-      formData.append('category', editForm.category);
-      formData.append('brand', editForm.brand);
-      formData.append('material', editForm.material);
-      formData.append('is_active', editForm.is_active);
-      formData.append('is_featured', editForm.is_featured);
-      formData.append('sizes', editForm.sizes);
-      formData.append('colors', editForm.colors);
-      
-      // Add existing images
-      formData.append('existing_images', JSON.stringify(editForm.images));
-      
-      // Add new images
-      selectedImages.forEach(file => {
-        formData.append('new_images', file);
-      });
-
-      const response = await fetch(`${API_BASE}/products/${editForm.id}`, {
-        method: "PUT",
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
-      });
-      
-      if (response.ok) {
-        // Close modal first
-        setShowEditModal(false);
-        setEditForm({});
-        setSelectedImages([]);
-        setImagePreviews([]);
-        
-        // Then refresh products without page reload
-        await fetchProducts();
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        setError(errorData.message || "Failed to update product.");
-      }
-    } catch (err) {
-      console.error('Update error:', err);
-      setError("Failed to update product. Please try again.");
-    } finally {
-      setUploading(false);
-    }
+    setSelectedProduct(product);
   };
 
   const handleView = (product) => {
@@ -239,9 +100,6 @@ export default function AdminPage() {
                          product.category.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesCategory && matchesSearch;
   });
-
-  const discountPercentage = editForm.original_price && editForm.price ?
-    Math.round(((editForm.original_price - editForm.price) / editForm.original_price) * 100) : 0;
 
   // Mobile Product Card Component
   const MobileProductCard = ({ product }) => (
@@ -325,288 +183,208 @@ export default function AdminPage() {
     </div>
   );
 
-  // Edit Modal Component - ✅ FIXED: Wrapped in form with onSubmit
-  const EditModal = () => (
-    <div className={styles.modalOverlay} onClick={() => setShowEditModal(false)}>
-      <div className={styles.editModal} onClick={(e) => e.stopPropagation()}>
-        <div className={styles.editModalHeader}>
-          <h2>Edit Product</h2>
-          <button 
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setShowEditModal(false);
-            }} 
-            className={styles.closeBtn}
-          >
-            <X size={24} />
-          </button>
-        </div>
+  // Edit Modal Component - Separated to prevent re-renders
+  const EditModal = () => {
+    const [editForm, setEditForm] = useState({});
+    const [selectedImages, setSelectedImages] = useState([]);
+    const [imagePreviews, setImagePreviews] = useState([]);
+    const [uploading, setUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState({});
+
+    // Initialize form when modal opens
+    useEffect(() => {
+      if (selectedProduct && showEditModal) {
+        setEditForm({
+          id: selectedProduct.id,
+          name: selectedProduct.name || "",
+          description: selectedProduct.description || "",
+          price: selectedProduct.price || 0,
+          original_price: selectedProduct.original_price || "",
+          category: selectedProduct.category || "Shirts",
+          brand: selectedProduct.brand || "BOLT FIT",
+          material: selectedProduct.material || "",
+          is_active: selectedProduct.is_active || false,
+          is_featured: selectedProduct.is_featured || false,
+          sizes: selectedProduct.sizes?.map(s => s.size).join(', ') || "",
+          colors: selectedProduct.colors?.map(c => c.name).join(', ') || "",
+          images: selectedProduct.images || []
+        });
+        setSelectedImages([]);
+        setImagePreviews([]);
+        setUploadProgress({});
+      }
+    }, [selectedProduct, showEditModal]);
+
+    const handleImageChange = (e) => {
+      const files = Array.from(e.target.files);
+      const validFiles = [];
+      const validPreviews = [];
+
+      for (const file of files) {
+        if (!file.type.startsWith('image/')) {
+          setError(`${file.name} is not a valid image file`);
+          continue;
+        }
+        if (file.size > 32 * 1024 * 1024) {
+          setError(`${file.name} is too large (max 32MB)`);
+          continue;
+        }
+        validFiles.push(file);
+        validPreviews.push(URL.createObjectURL(file));
+      }
+
+      setSelectedImages(prev => [...prev, ...validFiles]);
+      setImagePreviews(prev => [...prev, ...validPreviews]);
+    };
+
+    const uploadImagesToImgBB = async () => {
+      if (selectedImages.length === 0) return [];
+
+      setUploading(true);
+      const urls = [];
+
+      try {
+        for (let i = 0; i < selectedImages.length; i++) {
+          const file = selectedImages[i];
+          
+          const formData = new FormData();
+          formData.append('image', file);
+          
+          const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+            method: 'POST',
+            body: formData
+          });
+
+          if (!response.ok) {
+            throw new Error(`Failed to upload ${file.name}`);
+          }
+
+          const data = await response.json();
+          
+          if (!data.success) {
+            throw new Error(`ImgBB upload failed: ${data.error?.message || 'Unknown error'}`);
+          }
+
+          urls.push(data.data.display_url);
+          setUploadProgress(prev => ({ ...prev, [i]: ((i + 1) / selectedImages.length) * 100 }));
+        }
+
+        return urls;
+
+      } catch (error) {
+        console.error('Error uploading images:', error);
+        setError(`Failed to upload images: ${error.message}`);
+        return [];
+      } finally {
+        setUploading(false);
+      }
+    };
+
+    const removeImage = (index) => {
+      const newPreviews = [...imagePreviews];
+      URL.revokeObjectURL(newPreviews[index]);
+      newPreviews.splice(index, 1);
+      
+      const newFiles = [...selectedImages];
+      newFiles.splice(index, 1);
+      
+      setImagePreviews(newPreviews);
+      setSelectedImages(newFiles);
+    };
+
+    const removeExistingImage = (index) => {
+      const newImages = [...editForm.images];
+      newImages.splice(index, 1);
+      setEditForm({ ...editForm, images: newImages });
+    };
+
+    const addQuickSize = (size) => {
+      const currentSizes = editForm.sizes ? editForm.sizes.split(',').map(s => s.trim()) : [];
+      if (!currentSizes.includes(size)) {
+        const newSizes = [...currentSizes, size].join(', ');
+        setEditForm({ ...editForm, sizes: newSizes });
+      }
+    };
+
+    const addQuickColor = (color) => {
+      const currentColors = editForm.colors ? editForm.colors.split(',').map(c => c.trim()) : [];
+      if (!currentColors.includes(color)) {
+        const newColors = [...currentColors, color].join(', ');
+        setEditForm({ ...editForm, colors: newColors });
+      }
+    };
+
+    const handleSaveEdit = async (e) => {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+
+      try {
+        setUploading(true);
+        setError("");
         
-        {/* ✅ FIXED: Wrapped content in form with onSubmit handler */}
-        <form onSubmit={handleSaveEdit}>
-          <div className={styles.editModalContent}>
-            {/* Basic Information */}
-            <div className={styles.formSection}>
-              <h3 className={styles.sectionTitle}>
-                <Package size={20} />
-                Basic Information
-              </h3>
-              <div className={styles.formGrid}>
-                <div className={styles.formGroup}>
-                  <label>Product Name *</label>
-                  <input
-                    type="text"
-                    value={editForm.name}
-                    onChange={(e) => setEditForm({...editForm, name: e.target.value})}
-                    placeholder="Enter product name"
-                    required
-                  />
-                </div>
-                <div className={styles.formGroup}>
-                  <label>Category *</label>
-                  <select
-                    value={editForm.category}
-                    onChange={(e) => setEditForm({...editForm, category: e.target.value})}
-                    required
-                  >
-                    {categories.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className={styles.formGroup} style={{gridColumn: '1/-1'}}>
-                  <label>Description *</label>
-                  <textarea
-                    value={editForm.description}
-                    onChange={(e) => setEditForm({...editForm, description: e.target.value})}
-                    placeholder="Product description"
-                    rows={4}
-                    required
-                  />
-                </div>
-              </div>
-            </div>
+        // Upload new images to ImgBB first
+        let newImageUrls = [];
+        if (selectedImages.length > 0) {
+          newImageUrls = await uploadImagesToImgBB();
+          if (newImageUrls.length === 0 && selectedImages.length > 0) {
+            setError("Failed to upload images");
+            setUploading(false);
+            return;
+          }
+        }
 
-            {/* Pricing */}
-            <div className={styles.formSection}>
-              <h3 className={styles.sectionTitle}>
-                <Star size={20} />
-                Pricing
-              </h3>
-              <div className={styles.formGrid}>
-                <div className={styles.formGroup}>
-                  <label>Current Price *</label>
-                  <input
-                    type="number"
-                    value={editForm.price}
-                    onChange={(e) => setEditForm({...editForm, price: parseFloat(e.target.value)})}
-                    placeholder="0.00"
-                    required
-                  />
-                </div>
-                <div className={styles.formGroup}>
-                  <label>Original Price</label>
-                  <input
-                    type="number"
-                    value={editForm.original_price}
-                    onChange={(e) => setEditForm({...editForm, original_price: parseFloat(e.target.value)})}
-                    placeholder="0.00"
-                  />
-                </div>
-                {discountPercentage > 0 && (
-                  <div className={styles.discountBadge}>
-                    {discountPercentage}% OFF
-                  </div>
-                )}
-              </div>
-            </div>
+        // Combine existing and new image URLs
+        const allImageUrls = [...editForm.images, ...newImageUrls];
+        
+        const token = localStorage.getItem('authToken');
+        
+        const formData = new FormData();
+        formData.append('name', editForm.name);
+        formData.append('description', editForm.description);
+        formData.append('price', editForm.price);
+        formData.append('original_price', editForm.original_price || '');
+        formData.append('category', editForm.category);
+        formData.append('brand', editForm.brand);
+        formData.append('material', editForm.material);
+        formData.append('is_active', editForm.is_active);
+        formData.append('is_featured', editForm.is_featured);
+        formData.append('sizes', editForm.sizes);
+        formData.append('colors', editForm.colors);
+        formData.append('image_urls', JSON.stringify(allImageUrls));
 
-            {/* Product Details */}
-            <div className={styles.formSection}>
-              <h3 className={styles.sectionTitle}>
-                <TrendingUp size={20} />
-                Product Details
-              </h3>
-              <div className={styles.formGrid}>
-                <div className={styles.formGroup}>
-                  <label>Brand</label>
-                  <input
-                    type="text"
-                    value={editForm.brand}
-                    onChange={(e) => setEditForm({...editForm, brand: e.target.value})}
-                    placeholder="Brand name"
-                  />
-                </div>
-                <div className={styles.formGroup}>
-                  <label>Material</label>
-                  <input
-                    type="text"
-                    value={editForm.material}
-                    onChange={(e) => setEditForm({...editForm, material: e.target.value})}
-                    placeholder="Material type"
-                  />
-                </div>
-                
-                {/* Sizes */}
-                <div className={styles.formGroup} style={{gridColumn: '1/-1'}}>
-                  <label>Sizes</label>
-                  <input
-                    type="text"
-                    value={editForm.sizes}
-                    onChange={(e) => setEditForm({...editForm, sizes: e.target.value})}
-                    placeholder="XS, S, M, L, XL, XXL"
-                  />
-                  <div className={styles.quickAdd}>
-                    <span>Quick add:</span>
-                    {commonSizes.map(size => (
-                      <button
-                        key={size}
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          addQuickSize(size);
-                        }}
-                        className={styles.quickAddBtn}
-                      >
-                        {size}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+        const response = await fetch(`${API_BASE}/products/${editForm.id}`, {
+          method: "PUT",
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: formData
+        });
+        
+        if (response.ok) {
+          setShowEditModal(false);
+          await fetchProducts();
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          setError(errorData.message || "Failed to update product.");
+        }
+      } catch (err) {
+        console.error('Update error:', err);
+        setError("Failed to update product. Please try again.");
+      } finally {
+        setUploading(false);
+      }
+    };
 
-                {/* Colors */}
-                <div className={styles.formGroup} style={{gridColumn: '1/-1'}}>
-                  <label>Colors</label>
-                  <input
-                    type="text"
-                    value={editForm.colors}
-                    onChange={(e) => setEditForm({...editForm, colors: e.target.value})}
-                    placeholder="Red, Blue, Green, Black"
-                  />
-                  <div className={styles.quickAdd}>
-                    <span>Quick add:</span>
-                    {commonColors.map(color => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          addQuickColor(color);
-                        }}
-                        className={styles.quickAddBtn}
-                      >
-                        {color}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
+    const discountPercentage = editForm.original_price && editForm.price ?
+      Math.round(((editForm.original_price - editForm.price) / editForm.original_price) * 100) : 0;
 
-            {/* Images */}
-            <div className={styles.formSection}>
-              <h3 className={styles.sectionTitle}>
-                <ImageIcon size={20} />
-                Product Images
-              </h3>
-              
-              {/* Existing Images */}
-              {editForm.images?.length > 0 && (
-                <div className={styles.existingImages}>
-                  <h4>Current Images</h4>
-                  <div className={styles.imageGrid}>
-                    {editForm.images.map((img, index) => (
-                      <div key={index} className={styles.imagePreview}>
-                        <img src={img} alt={`Product ${index + 1}`} />
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            removeExistingImage(index);
-                          }}
-                          className={styles.removeImageBtn}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Add New Images */}
-              <div className={styles.imageUpload}>
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className={styles.fileInput}
-                  id="imageInput"
-                />
-                <label htmlFor="imageInput" className={styles.uploadBtn}>
-                  <Upload size={20} />
-                  {selectedImages.length === 0 ? "Add New Images" : `${selectedImages.length} images selected`}
-                </label>
-              </div>
-
-              {/* New Image Previews */}
-              {imagePreviews.length > 0 && (
-                <div className={styles.newImages}>
-                  <h4>New Images to Add</h4>
-                  <div className={styles.imageGrid}>
-                    {imagePreviews.map((src, index) => (
-                      <div key={index} className={styles.imagePreview}>
-                        <img src={src} alt={`New ${index + 1}`} />
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            removeImage(index);
-                          }}
-                          className={styles.removeImageBtn}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Settings */}
-            <div className={styles.formSection}>
-              <h3 className={styles.sectionTitle}>
-                <TrendingUp size={20} />
-                Settings
-              </h3>
-              <div className={styles.toggleGroup}>
-                <label className={styles.toggleLabel}>
-                  <input
-                    type="checkbox"
-                    checked={editForm.is_featured}
-                    onChange={(e) => setEditForm({...editForm, is_featured: e.target.checked})}
-                  />
-                  <span className={styles.toggleSwitch}></span>
-                  Featured Product
-                </label>
-                <label className={styles.toggleLabel}>
-                  <input
-                    type="checkbox"
-                    checked={editForm.is_active}
-                    onChange={(e) => setEditForm({...editForm, is_active: e.target.checked})}
-                  />
-                  <span className={styles.toggleSwitch}></span>
-                  Active Product
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <div className={styles.editModalFooter}>
+    return (
+      <div className={styles.modalOverlay} onClick={() => setShowEditModal(false)}>
+        <div className={styles.editModal} onClick={(e) => e.stopPropagation()}>
+          <div className={styles.editModalHeader}>
+            <h2>Edit Product</h2>
             <button 
               type="button"
               onClick={(e) => {
@@ -614,33 +392,315 @@ export default function AdminPage() {
                 e.stopPropagation();
                 setShowEditModal(false);
               }} 
-              className={styles.cancelBtn}
-              disabled={uploading}
+              className={styles.closeBtn}
             >
-              Cancel
-            </button>
-            <button 
-              type="submit"
-              className={styles.saveBtn}
-              disabled={uploading}
-            >
-              {uploading ? (
-                <>
-                  <div className={styles.spinner}></div>
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save size={16} />
-                  Save Changes
-                </>
-              )}
+              <X size={24} />
             </button>
           </div>
-        </form>
+          
+          <form onSubmit={handleSaveEdit}>
+            <div className={styles.editModalContent}>
+              {/* Basic Information */}
+              <div className={styles.formSection}>
+                <h3 className={styles.sectionTitle}>
+                  <Package size={20} />
+                  Basic Information
+                </h3>
+                <div className={styles.formGrid}>
+                  <div className={styles.formGroup}>
+                    <label>Product Name *</label>
+                    <input
+                      type="text"
+                      value={editForm.name || ""}
+                      onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                      placeholder="Enter product name"
+                      required
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label>Category *</label>
+                    <select
+                      value={editForm.category || "Shirts"}
+                      onChange={(e) => setEditForm({...editForm, category: e.target.value})}
+                      required
+                    >
+                      {categories.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className={styles.formGroup} style={{gridColumn: '1/-1'}}>
+                    <label>Description *</label>
+                    <textarea
+                      value={editForm.description || ""}
+                      onChange={(e) => setEditForm({...editForm, description: e.target.value})}
+                      placeholder="Product description"
+                      rows={4}
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Pricing */}
+              <div className={styles.formSection}>
+                <h3 className={styles.sectionTitle}>
+                  <Star size={20} />
+                  Pricing
+                </h3>
+                <div className={styles.formGrid}>
+                  <div className={styles.formGroup}>
+                    <label>Current Price *</label>
+                    <input
+                      type="number"
+                      value={editForm.price || ""}
+                      onChange={(e) => setEditForm({...editForm, price: parseFloat(e.target.value) || 0})}
+                      placeholder="0.00"
+                      required
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label>Original Price</label>
+                    <input
+                      type="number"
+                      value={editForm.original_price || ""}
+                      onChange={(e) => setEditForm({...editForm, original_price: parseFloat(e.target.value) || ""})}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  {discountPercentage > 0 && (
+                    <div className={styles.discountBadge}>
+                      {discountPercentage}% OFF
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Product Details */}
+              <div className={styles.formSection}>
+                <h3 className={styles.sectionTitle}>
+                  <TrendingUp size={20} />
+                  Product Details
+                </h3>
+                <div className={styles.formGrid}>
+                  <div className={styles.formGroup}>
+                    <label>Brand</label>
+                    <input
+                      type="text"
+                      value={editForm.brand || ""}
+                      onChange={(e) => setEditForm({...editForm, brand: e.target.value})}
+                      placeholder="Brand name"
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label>Material</label>
+                    <input
+                      type="text"
+                      value={editForm.material || ""}
+                      onChange={(e) => setEditForm({...editForm, material: e.target.value})}
+                      placeholder="Material type"
+                    />
+                  </div>
+                  
+                  <div className={styles.formGroup} style={{gridColumn: '1/-1'}}>
+                    <label>Sizes</label>
+                    <input
+                      type="text"
+                      value={editForm.sizes || ""}
+                      onChange={(e) => setEditForm({...editForm, sizes: e.target.value})}
+                      placeholder="XS, S, M, L, XL, XXL"
+                    />
+                    <div className={styles.quickAdd}>
+                      <span>Quick add:</span>
+                      {commonSizes.map(size => (
+                        <button
+                          key={size}
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            addQuickSize(size);
+                          }}
+                          className={styles.quickAddBtn}
+                        >
+                          {size}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className={styles.formGroup} style={{gridColumn: '1/-1'}}>
+                    <label>Colors</label>
+                    <input
+                      type="text"
+                      value={editForm.colors || ""}
+                      onChange={(e) => setEditForm({...editForm, colors: e.target.value})}
+                      placeholder="Red, Blue, Green, Black"
+                    />
+                    <div className={styles.quickAdd}>
+                      <span>Quick add:</span>
+                      {commonColors.map(color => (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            addQuickColor(color);
+                          }}
+                          className={styles.quickAddBtn}
+                        >
+                          {color}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Images */}
+              <div className={styles.formSection}>
+                <h3 className={styles.sectionTitle}>
+                  <ImageIcon size={20} />
+                  Product Images
+                </h3>
+                
+                {editForm.images?.length > 0 && (
+                  <div className={styles.existingImages}>
+                    <h4>Current Images</h4>
+                    <div className={styles.imageGrid}>
+                      {editForm.images.map((img, index) => (
+                        <div key={index} className={styles.imagePreview}>
+                          <img src={img} alt={`Product ${index + 1}`} />
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              removeExistingImage(index);
+                            }}
+                            className={styles.removeImageBtn}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className={styles.imageUpload}>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className={styles.fileInput}
+                    id="imageInput"
+                  />
+                  <label htmlFor="imageInput" className={styles.uploadBtn}>
+                    <Upload size={20} />
+                    {selectedImages.length === 0 ? "Add New Images" : `${selectedImages.length} images selected`}
+                  </label>
+                </div>
+
+                {imagePreviews.length > 0 && (
+                  <div className={styles.newImages}>
+                    <h4>New Images to Add</h4>
+                    <div className={styles.imageGrid}>
+                      {imagePreviews.map((src, index) => (
+                        <div key={index} className={styles.imagePreview}>
+                          <img src={src} alt={`New ${index + 1}`} />
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              removeImage(index);
+                            }}
+                            className={styles.removeImageBtn}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {uploading && uploadProgress && (
+                  <div className={styles.uploadProgress}>
+                    <p>Uploading images to ImgBB...</p>
+                    {Object.values(uploadProgress).map((progress, i) => (
+                      <div key={i} className={styles.progressBar}>
+                        <div style={{width: `${progress}%`}}></div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Settings */}
+              <div className={styles.formSection}>
+                <h3 className={styles.sectionTitle}>
+                  <TrendingUp size={20} />
+                  Settings
+                </h3>
+                <div className={styles.toggleGroup}>
+                  <label className={styles.toggleLabel}>
+                    <input
+                      type="checkbox"
+                      checked={editForm.is_featured || false}
+                      onChange={(e) => setEditForm({...editForm, is_featured: e.target.checked})}
+                    />
+                    <span className={styles.toggleSwitch}></span>
+                    Featured Product
+                  </label>
+                  <label className={styles.toggleLabel}>
+                    <input
+                      type="checkbox"
+                      checked={editForm.is_active || false}
+                      onChange={(e) => setEditForm({...editForm, is_active: e.target.checked})}
+                    />
+                    <span className={styles.toggleSwitch}></span>
+                    Active Product
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.editModalFooter}>
+              <button 
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowEditModal(false);
+                }} 
+                className={styles.cancelBtn}
+                disabled={uploading}
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit"
+                className={styles.saveBtn}
+                disabled={uploading}
+              >
+                {uploading ? (
+                  <>
+                    <div className={styles.spinner}></div>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save size={16} />
+                    Save Changes
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // View Modal
   const ProductModal = () => (
@@ -681,7 +741,6 @@ export default function AdminPage() {
 
   return (
     <div className={styles.container}>
-      {/* Header */}
       <div className={styles.header}>
         <div className={styles.headerLeft}>
           <div className={styles.logo}>
@@ -712,7 +771,6 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Stats Dashboard */}
       <div className={styles.dashboard}>
         <div className={styles.statsGrid}>
           <div className={`${styles.statsCard} ${styles.primary}`}>
@@ -745,7 +803,6 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Controls */}
       <div className={styles.controls}>
         <div className={styles.searchAndFilter}>
           <div className={styles.searchBox}>
@@ -780,7 +837,6 @@ export default function AdminPage() {
         </button>
       </div>
 
-      {/* Loading and Error States */}
       {loading && (
         <div className={styles.loadingContainer}>
           <div className={styles.spinner}></div>
@@ -797,17 +853,14 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Products Display */}
       <div className={styles.productsContainer}>
         {isMobile ? (
-          // Mobile Card View
           <div className={styles.mobileCardsContainer}>
             {filteredProducts.map((product) => (
               <MobileProductCard key={product.id} product={product} />
             ))}
           </div>
         ) : (
-          // Desktop Table View
           <div className={styles.tableContainer}>
             <table className={styles.table}>
               <thead>
@@ -904,7 +957,6 @@ export default function AdminPage() {
         )}
       </div>
 
-      {/* Modals */}
       {showEditModal && <EditModal />}
       {showProductModal && <ProductModal />}
     </div>
