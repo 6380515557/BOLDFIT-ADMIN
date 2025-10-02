@@ -209,6 +209,12 @@ export default function AdminPage() {
     setShowProductModal(true);
   };
 
+  // ✅ ADD THIS MISSING FUNCTION
+  const handleAddProduct = () => {
+    console.log('Navigating to add product page...');
+    navigate('/admin/add-product');
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -708,7 +714,8 @@ export default function AdminPage() {
           </div>
         </div>
         
-        <button className={styles.addButton} onClick={() => navigate("/admin/new-product")}>
+        {/* ✅ FIX THE ADD BUTTON - ADD onClick HANDLER */}
+        <button className={styles.addButton} onClick={handleAddProduct}>
           <Plus size={20} />
           {!isMobile && <span>Add Product</span>}
         </button>
@@ -827,6 +834,11 @@ export default function AdminPage() {
             <Package size={64} />
             <h3>No products found</h3>
             <p>Try adjusting your search or add your first product!</p>
+            {/* ✅ FIX THE EMPTY STATE BUTTON TOO */}
+            <button className={styles.addButton} onClick={handleAddProduct}>
+              <Plus size={20} />
+              <span>Add Your First Product</span>
+            </button>
           </div>
         )}
       </div>
