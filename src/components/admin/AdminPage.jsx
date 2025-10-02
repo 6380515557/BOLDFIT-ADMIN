@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import styles from "./AdminPage.module.css";
 import { Eye, Edit3, Trash2, Plus } from "lucide-react";
 
-const API_BASE = "https://your-backend-url.com"; // Update to match your backend URL
+const API_BASE = "https://boltfit-backend-r4no.onrender.com/api/v1"; // Update to match your backend URL
 
 export default function AdminPage() {
   const navigate = useNavigate();
