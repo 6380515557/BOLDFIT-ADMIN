@@ -4,7 +4,8 @@ import { useAuth } from "../../context/AuthContext";
 import styles from "./AdminPage.module.css";
 import { 
   Eye, Edit3, Trash2, Plus, LogOut, Package, TrendingUp, 
-  Save, X, Search, ShoppingBag, Star, Upload, Image as ImageIcon
+  Save, X, Search, ShoppingBag, Star, Upload, Image as ImageIcon,
+  Menu, MoreVertical
 } from "lucide-react";
 
 const API_BASE = "https://boltfit-backend-r4no.onrender.com/api/v1";
@@ -27,6 +28,18 @@ export default function AdminPage() {
   const [uploading, setUploading] = useState(false);
   const [selectedImages, setSelectedImages] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check if mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Fetch all products from API
   const fetchProducts = async () => {
@@ -211,6 +224,73 @@ export default function AdminPage() {
 
   const discountPercentage = editForm.original_price && editForm.price ?
     Math.round(((editForm.original_price - editForm.price) / editForm.original_price) * 100) : 0;
+
+  // Mobile Product Card Component
+  const MobileProductCard = ({ product }) => (
+    <div className={styles.mobileCard}>
+      <div className={styles.mobileCardHeader}>
+        <div className={styles.mobileCardLeft}>
+          {product.images?.[0] && (
+            <img src={product.images[0]} alt={product.name} className={styles.mobileCardImage} />
+          )}
+          <div className={styles.mobileCardInfo}>
+            <h4 className={styles.mobileCardTitle}>{product.name}</h4>
+            <p className={styles.mobileCardId}>#{product.id}</p>
+            <span className={styles.mobileCardCategory}>{product.category}</span>
+          </div>
+        </div>
+        <div className={styles.mobileCardActions}>
+          <button
+            className={`${styles.mobileActionBtn} ${styles.view}`}
+            onClick={() => handleView(product)}
+            title="View"
+          >
+            <Eye size={16} />
+          </button>
+          <button
+            className={`${styles.mobileActionBtn} ${styles.edit}`}
+            onClick={() => handleEdit(product)}
+            title="Edit"
+          >
+            <Edit3 size={16} />
+          </button>
+          <button
+            className={`${styles.mobileActionBtn} ${styles.delete}`}
+            onClick={() => handleDelete(product.id)}
+            title="Delete"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      </div>
+      
+      <div className={styles.mobileCardBody}>
+        <div className={styles.mobileCardRow}>
+          <span className={styles.mobileCardLabel}>Price:</span>
+          <div className={styles.mobileCardPrice}>
+            <span className={styles.currentPrice}>₹{product.price}</span>
+            {product.original_price && (
+              <span className={styles.originalPrice}>₹{product.original_price}</span>
+            )}
+          </div>
+        </div>
+        
+        <div className={styles.mobileCardRow}>
+          <span className={styles.mobileCardLabel}>Status:</span>
+          <div className={styles.mobileCardStatus}>
+            <span className={`${styles.statusBadge} ${product.is_active ? styles.active : styles.inactive}`}>
+              {product.is_active ? 'Active' : 'Inactive'}
+            </span>
+            {product.is_featured && (
+              <span className={`${styles.statusBadge} ${styles.featured}`}>
+                <Star size={10} /> Featured
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   // Edit Modal Component
   const EditModal = () => (
@@ -497,7 +577,7 @@ export default function AdminPage() {
     </div>
   );
 
-  // View Modal (existing)
+  // View Modal
   const ProductModal = () => (
     <div className={styles.modalOverlay} onClick={() => setShowProductModal(false)}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
@@ -541,24 +621,26 @@ export default function AdminPage() {
         <div className={styles.headerLeft}>
           <div className={styles.logo}>
             <div className={styles.logoIcon}>
-              <Package size={28} />
+              <Package size={isMobile ? 24 : 28} />
             </div>
             <div className={styles.logoText}>
               <h1>BoltFit Admin</h1>
-              <p>Product Management Hub</p>
+              {!isMobile && <p>Product Management Hub</p>}
             </div>
           </div>
         </div>
         <div className={styles.headerRight}>
-          <div className={styles.adminProfile}>
-            <div className={styles.adminAvatar}>
-              {admin?.name?.charAt(0) || 'A'}
+          {!isMobile && (
+            <div className={styles.adminProfile}>
+              <div className={styles.adminAvatar}>
+                {admin?.name?.charAt(0) || 'A'}
+              </div>
+              <div className={styles.adminInfo}>
+                <span>{admin?.name || 'Admin'}</span>
+                <small>Administrator</small>
+              </div>
             </div>
-            <div className={styles.adminInfo}>
-              <span>{admin?.name || 'Admin'}</span>
-              <small>Administrator</small>
-            </div>
-          </div>
+          )}
           <button className={styles.logoutBtn} onClick={handleLogout}>
             <LogOut size={18} />
           </button>
@@ -628,7 +710,7 @@ export default function AdminPage() {
         
         <button className={styles.addButton} onClick={() => navigate("/admin/new-product")}>
           <Plus size={20} />
-          <span>Add Product</span>
+          {!isMobile && <span>Add Product</span>}
         </button>
       </div>
 
@@ -649,86 +731,96 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Products Table */}
+      {/* Products Display */}
       <div className={styles.productsContainer}>
-        <div className={styles.tableContainer}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Product</th>
-                <th>Category</th>
-                <th>Price</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredProducts.map((product) => (
-                <tr key={product.id} className={styles.tableRow}>
-                  <td>
-                    <div className={styles.productCell}>
-                      {product.images?.[0] && (
-                        <img src={product.images[0]} alt={product.name} className={styles.productImage} />
-                      )}
-                      <div className={styles.productDetails}>
-                        <div className={styles.productName}>{product.name}</div>
-                        <div className={styles.productId}>#{product.id}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <span className={styles.categoryBadge}>{product.category}</span>
-                  </td>
-                  <td>
-                    <div className={styles.priceCell}>
-                      <span className={styles.currentPrice}>₹{product.price}</span>
-                      {product.original_price && (
-                        <span className={styles.originalPrice}>₹{product.original_price}</span>
-                      )}
-                    </div>
-                  </td>
-                  <td>
-                    <div className={styles.statusGroup}>
-                      <span className={`${styles.statusBadge} ${product.is_active ? styles.active : styles.inactive}`}>
-                        {product.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                      {product.is_featured && (
-                        <span className={`${styles.statusBadge} ${styles.featured}`}>
-                          <Star size={12} /> Featured
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td>
-                    <div className={styles.actionButtons}>
-                      <button
-                        className={`${styles.actionBtn} ${styles.view}`}
-                        onClick={() => handleView(product)}
-                        title="View Details"
-                      >
-                        <Eye size={16} />
-                      </button>
-                      <button
-                        className={`${styles.actionBtn} ${styles.edit}`}
-                        onClick={() => handleEdit(product)}
-                        title="Edit Product"
-                      >
-                        <Edit3 size={16} />
-                      </button>
-                      <button
-                        className={`${styles.actionBtn} ${styles.delete}`}
-                        onClick={() => handleDelete(product.id)}
-                        title="Delete Product"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
+        {isMobile ? (
+          // Mobile Card View
+          <div className={styles.mobileCardsContainer}>
+            {filteredProducts.map((product) => (
+              <MobileProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        ) : (
+          // Desktop Table View
+          <div className={styles.tableContainer}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Category</th>
+                  <th>Price</th>
+                  <th>Status</th>
+                  <th>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filteredProducts.map((product) => (
+                  <tr key={product.id} className={styles.tableRow}>
+                    <td>
+                      <div className={styles.productCell}>
+                        {product.images?.[0] && (
+                          <img src={product.images[0]} alt={product.name} className={styles.productImage} />
+                        )}
+                        <div className={styles.productDetails}>
+                          <div className={styles.productName}>{product.name}</div>
+                          <div className={styles.productId}>#{product.id}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <span className={styles.categoryBadge}>{product.category}</span>
+                    </td>
+                    <td>
+                      <div className={styles.priceCell}>
+                        <span className={styles.currentPrice}>₹{product.price}</span>
+                        {product.original_price && (
+                          <span className={styles.originalPrice}>₹{product.original_price}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      <div className={styles.statusGroup}>
+                        <span className={`${styles.statusBadge} ${product.is_active ? styles.active : styles.inactive}`}>
+                          {product.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                        {product.is_featured && (
+                          <span className={`${styles.statusBadge} ${styles.featured}`}>
+                            <Star size={12} /> Featured
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      <div className={styles.actionButtons}>
+                        <button
+                          className={`${styles.actionBtn} ${styles.view}`}
+                          onClick={() => handleView(product)}
+                          title="View Details"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        <button
+                          className={`${styles.actionBtn} ${styles.edit}`}
+                          onClick={() => handleEdit(product)}
+                          title="Edit Product"
+                        >
+                          <Edit3 size={16} />
+                        </button>
+                        <button
+                          className={`${styles.actionBtn} ${styles.delete}`}
+                          onClick={() => handleDelete(product.id)}
+                          title="Delete Product"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {filteredProducts.length === 0 && !loading && (
           <div className={styles.emptyState}>
