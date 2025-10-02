@@ -1,24 +1,39 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 import styles from "./AdminPage.module.css";
-import { Eye, Edit3, Trash2, Plus } from "lucide-react";
+import { 
+  Eye, Edit3, Trash2, Plus, LogOut, Package, TrendingUp, 
+  Save, X, Search, ShoppingBag, Star, Upload, Image as ImageIcon
+} from "lucide-react";
 
-const API_BASE = "https://boltfit-backend-r4no.onrender.com/api/v1"; // Update to match your backend URL
+const API_BASE = "https://boltfit-backend-r4no.onrender.com/api/v1";
+const categories = ["Shirts", "T-Shirts", "Pants", "Trending"];
+const commonSizes = ["XS", "S", "M", "L", "XL", "XXL"];
+const commonColors = ["Red", "Blue", "Green", "Black", "White", "Gray", "Yellow", "Orange", "Purple", "Pink", "Brown", "Navy"];
 
 export default function AdminPage() {
   const navigate = useNavigate();
+  const { logout, admin } = useAuth();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
-  const categories = ["All", "Shirts", "Pants", "T-Shirts", "Trending"];
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({});
+  const [uploading, setUploading] = useState(false);
+  const [selectedImages, setSelectedImages] = useState([]);
+  const [imagePreviews, setImagePreviews] = useState([]);
 
   // Fetch all products from API
   const fetchProducts = async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}/products`);
+      const res = await fetch(`${API_BASE}/products/?page=1&perpage=100`);
       const data = await res.json();
       setProducts(data.products || []);
     } catch (e) {
@@ -35,7 +50,13 @@ export default function AdminPage() {
     if (!window.confirm("Delete this product?")) return;
     try {
       setLoading(true);
-      await fetch(`${API_BASE}/products/${id}`, { method: "DELETE" });
+      const token = localStorage.getItem('authToken');
+      await fetch(`${API_BASE}/products/${id}`, { 
+        method: "DELETE",
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       fetchProducts();
     } catch {
       setError("Failed to delete product.");
@@ -43,104 +64,684 @@ export default function AdminPage() {
     }
   };
 
+  const handleEdit = (product) => {
+    setEditForm({
+      id: product.id,
+      name: product.name || "",
+      description: product.description || "",
+      price: product.price || 0,
+      original_price: product.original_price || "",
+      category: product.category || "Shirts",
+      brand: product.brand || "BOLT FIT",
+      material: product.material || "",
+      is_active: product.is_active || false,
+      is_featured: product.is_featured || false,
+      sizes: product.sizes?.map(s => s.size).join(', ') || "",
+      colors: product.colors?.map(c => c.name).join(', ') || "",
+      images: product.images || []
+    });
+    setSelectedImages([]);
+    setImagePreviews([]);
+    setShowEditModal(true);
+  };
+
+  const handleImageChange = (e) => {
+    const files = Array.from(e.target.files);
+    const validFiles = [];
+    const validPreviews = [];
+
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) {
+        setError(`${file.name} is not a valid image file`);
+        continue;
+      }
+      if (file.size > 32 * 1024 * 1024) {
+        setError(`${file.name} is too large (max 32MB)`);
+        continue;
+      }
+      validFiles.push(file);
+      validPreviews.push(URL.createObjectURL(file));
+    }
+
+    setSelectedImages(prev => [...prev, ...validFiles]);
+    setImagePreviews(prev => [...prev, ...validPreviews]);
+  };
+
+  const removeImage = (index) => {
+    const newPreviews = [...imagePreviews];
+    URL.revokeObjectURL(newPreviews[index]);
+    newPreviews.splice(index, 1);
+    
+    const newFiles = [...selectedImages];
+    newFiles.splice(index, 1);
+    
+    setImagePreviews(newPreviews);
+    setSelectedImages(newFiles);
+  };
+
+  const removeExistingImage = (index) => {
+    const newImages = [...editForm.images];
+    newImages.splice(index, 1);
+    setEditForm({ ...editForm, images: newImages });
+  };
+
+  const addQuickSize = (size) => {
+    const currentSizes = editForm.sizes ? editForm.sizes.split(',').map(s => s.trim()) : [];
+    if (!currentSizes.includes(size)) {
+      const newSizes = [...currentSizes, size].join(', ');
+      setEditForm({ ...editForm, sizes: newSizes });
+    }
+  };
+
+  const addQuickColor = (color) => {
+    const currentColors = editForm.colors ? editForm.colors.split(',').map(c => c.trim()) : [];
+    if (!currentColors.includes(color)) {
+      const newColors = [...currentColors, color].join(', ');
+      setEditForm({ ...editForm, colors: newColors });
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    try {
+      setUploading(true);
+      const token = localStorage.getItem('authToken');
+      
+      const formData = new FormData();
+      formData.append('name', editForm.name);
+      formData.append('description', editForm.description);
+      formData.append('price', editForm.price);
+      formData.append('original_price', editForm.original_price || '');
+      formData.append('category', editForm.category);
+      formData.append('brand', editForm.brand);
+      formData.append('material', editForm.material);
+      formData.append('is_active', editForm.is_active);
+      formData.append('is_featured', editForm.is_featured);
+      formData.append('sizes', editForm.sizes);
+      formData.append('colors', editForm.colors);
+      
+      // Add existing images
+      formData.append('existing_images', JSON.stringify(editForm.images));
+      
+      // Add new images
+      selectedImages.forEach(file => {
+        formData.append('new_images', file);
+      });
+
+      const response = await fetch(`${API_BASE}/products/${editForm.id}`, {
+        method: "PUT",
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+      
+      if (response.ok) {
+        setShowEditModal(false);
+        setEditForm({});
+        setSelectedImages([]);
+        setImagePreviews([]);
+        fetchProducts();
+      } else {
+        setError("Failed to update product.");
+      }
+    } catch {
+      setError("Failed to update product.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleView = (product) => {
+    setSelectedProduct(product);
+    setShowProductModal(true);
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   // Filtering logic
-  const filteredProducts =
-    selectedCategory === "All"
-      ? products
-      : products.filter((p) => p.category === selectedCategory);
+  const filteredProducts = products.filter(product => {
+    const matchesCategory = selectedCategory === "All" || product.category === selectedCategory;
+    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         product.category.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+
+  const discountPercentage = editForm.original_price && editForm.price ?
+    Math.round(((editForm.original_price - editForm.price) / editForm.original_price) * 100) : 0;
+
+  // Edit Modal Component
+  const EditModal = () => (
+    <div className={styles.modalOverlay} onClick={() => setShowEditModal(false)}>
+      <div className={styles.editModal} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.editModalHeader}>
+          <h2>Edit Product</h2>
+          <button onClick={() => setShowEditModal(false)} className={styles.closeBtn}>
+            <X size={24} />
+          </button>
+        </div>
+        
+        <div className={styles.editModalContent}>
+          {/* Basic Information */}
+          <div className={styles.formSection}>
+            <h3 className={styles.sectionTitle}>
+              <Package size={20} />
+              Basic Information
+            </h3>
+            <div className={styles.formGrid}>
+              <div className={styles.formGroup}>
+                <label>Product Name *</label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                  placeholder="Enter product name"
+                />
+              </div>
+              <div className={styles.formGroup}>
+                <label>Category *</label>
+                <select
+                  value={editForm.category}
+                  onChange={(e) => setEditForm({...editForm, category: e.target.value})}
+                >
+                  {categories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+              <div className={styles.formGroup} style={{gridColumn: '1/-1'}}>
+                <label>Description *</label>
+                <textarea
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({...editForm, description: e.target.value})}
+                  placeholder="Product description"
+                  rows={4}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Pricing */}
+          <div className={styles.formSection}>
+            <h3 className={styles.sectionTitle}>
+              <Star size={20} />
+              Pricing
+            </h3>
+            <div className={styles.formGrid}>
+              <div className={styles.formGroup}>
+                <label>Current Price *</label>
+                <input
+                  type="number"
+                  value={editForm.price}
+                  onChange={(e) => setEditForm({...editForm, price: parseFloat(e.target.value)})}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className={styles.formGroup}>
+                <label>Original Price</label>
+                <input
+                  type="number"
+                  value={editForm.original_price}
+                  onChange={(e) => setEditForm({...editForm, original_price: parseFloat(e.target.value)})}
+                  placeholder="0.00"
+                />
+              </div>
+              {discountPercentage > 0 && (
+                <div className={styles.discountBadge}>
+                  {discountPercentage}% OFF
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Product Details */}
+          <div className={styles.formSection}>
+            <h3 className={styles.sectionTitle}>
+              <TrendingUp size={20} />
+              Product Details
+            </h3>
+            <div className={styles.formGrid}>
+              <div className={styles.formGroup}>
+                <label>Brand</label>
+                <input
+                  type="text"
+                  value={editForm.brand}
+                  onChange={(e) => setEditForm({...editForm, brand: e.target.value})}
+                  placeholder="Brand name"
+                />
+              </div>
+              <div className={styles.formGroup}>
+                <label>Material</label>
+                <input
+                  type="text"
+                  value={editForm.material}
+                  onChange={(e) => setEditForm({...editForm, material: e.target.value})}
+                  placeholder="Material type"
+                />
+              </div>
+              
+              {/* Sizes */}
+              <div className={styles.formGroup} style={{gridColumn: '1/-1'}}>
+                <label>Sizes</label>
+                <input
+                  type="text"
+                  value={editForm.sizes}
+                  onChange={(e) => setEditForm({...editForm, sizes: e.target.value})}
+                  placeholder="XS, S, M, L, XL, XXL"
+                />
+                <div className={styles.quickAdd}>
+                  <span>Quick add:</span>
+                  {commonSizes.map(size => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => addQuickSize(size)}
+                      className={styles.quickAddBtn}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Colors */}
+              <div className={styles.formGroup} style={{gridColumn: '1/-1'}}>
+                <label>Colors</label>
+                <input
+                  type="text"
+                  value={editForm.colors}
+                  onChange={(e) => setEditForm({...editForm, colors: e.target.value})}
+                  placeholder="Red, Blue, Green, Black"
+                />
+                <div className={styles.quickAdd}>
+                  <span>Quick add:</span>
+                  {commonColors.map(color => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => addQuickColor(color)}
+                      className={styles.quickAddBtn}
+                    >
+                      {color}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Images */}
+          <div className={styles.formSection}>
+            <h3 className={styles.sectionTitle}>
+              <ImageIcon size={20} />
+              Product Images
+            </h3>
+            
+            {/* Existing Images */}
+            {editForm.images?.length > 0 && (
+              <div className={styles.existingImages}>
+                <h4>Current Images</h4>
+                <div className={styles.imageGrid}>
+                  {editForm.images.map((img, index) => (
+                    <div key={index} className={styles.imagePreview}>
+                      <img src={img} alt={`Product ${index + 1}`} />
+                      <button
+                        type="button"
+                        onClick={() => removeExistingImage(index)}
+                        className={styles.removeImageBtn}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Add New Images */}
+            <div className={styles.imageUpload}>
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleImageChange}
+                className={styles.fileInput}
+                id="imageInput"
+              />
+              <label htmlFor="imageInput" className={styles.uploadBtn}>
+                <Upload size={20} />
+                {selectedImages.length === 0 ? "Add New Images" : `${selectedImages.length} images selected`}
+              </label>
+            </div>
+
+            {/* New Image Previews */}
+            {imagePreviews.length > 0 && (
+              <div className={styles.newImages}>
+                <h4>New Images to Add</h4>
+                <div className={styles.imageGrid}>
+                  {imagePreviews.map((src, index) => (
+                    <div key={index} className={styles.imagePreview}>
+                      <img src={src} alt={`New ${index + 1}`} />
+                      <button
+                        type="button"
+                        onClick={() => removeImage(index)}
+                        className={styles.removeImageBtn}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Settings */}
+          <div className={styles.formSection}>
+            <h3 className={styles.sectionTitle}>
+              <TrendingUp size={20} />
+              Settings
+            </h3>
+            <div className={styles.toggleGroup}>
+              <label className={styles.toggleLabel}>
+                <input
+                  type="checkbox"
+                  checked={editForm.is_featured}
+                  onChange={(e) => setEditForm({...editForm, is_featured: e.target.checked})}
+                />
+                <span className={styles.toggleSwitch}></span>
+                Featured Product
+              </label>
+              <label className={styles.toggleLabel}>
+                <input
+                  type="checkbox"
+                  checked={editForm.is_active}
+                  onChange={(e) => setEditForm({...editForm, is_active: e.target.checked})}
+                />
+                <span className={styles.toggleSwitch}></span>
+                Active Product
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div className={styles.editModalFooter}>
+          <button 
+            onClick={() => setShowEditModal(false)} 
+            className={styles.cancelBtn}
+            disabled={uploading}
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={handleSaveEdit} 
+            className={styles.saveBtn}
+            disabled={uploading}
+          >
+            {uploading ? (
+              <>
+                <div className={styles.spinner}></div>
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save size={16} />
+                Save Changes
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // View Modal (existing)
+  const ProductModal = () => (
+    <div className={styles.modalOverlay} onClick={() => setShowProductModal(false)}>
+      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.modalHeader}>
+          <h3>Product Details</h3>
+          <button onClick={() => setShowProductModal(false)}>×</button>
+        </div>
+        <div className={styles.modalContent}>
+          {selectedProduct && (
+            <>
+              <div className={styles.productImages}>
+                {selectedProduct.images?.length > 0 ? (
+                  selectedProduct.images.map((img, index) => (
+                    <img key={index} src={img} alt={selectedProduct.name} />
+                  ))
+                ) : (
+                  <div className={styles.noImage}>No Images</div>
+                )}
+              </div>
+              <div className={styles.productInfo}>
+                <h4>{selectedProduct.name}</h4>
+                <p className={styles.description}>{selectedProduct.description || "No description available"}</p>
+                <div className={styles.priceInfo}>
+                  <span className={styles.price}>₹{selectedProduct.price}</span>
+                  {selectedProduct.original_price && (
+                    <span className={styles.originalPrice}>₹{selectedProduct.original_price}</span>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className={styles.container}>
-      <div className={styles.headerRow}>
-        <h1 className={styles.title}>Product Admin Panel</h1>
-        <button
-          className={styles.addButton}
-          onClick={() => navigate("/admin/new-product")}
-        >
-          <Plus size={20} /> Add Product
+      {/* Header */}
+      <div className={styles.header}>
+        <div className={styles.headerLeft}>
+          <div className={styles.logo}>
+            <div className={styles.logoIcon}>
+              <Package size={28} />
+            </div>
+            <div className={styles.logoText}>
+              <h1>BoltFit Admin</h1>
+              <p>Product Management Hub</p>
+            </div>
+          </div>
+        </div>
+        <div className={styles.headerRight}>
+          <div className={styles.adminProfile}>
+            <div className={styles.adminAvatar}>
+              {admin?.name?.charAt(0) || 'A'}
+            </div>
+            <div className={styles.adminInfo}>
+              <span>{admin?.name || 'Admin'}</span>
+              <small>Administrator</small>
+            </div>
+          </div>
+          <button className={styles.logoutBtn} onClick={handleLogout}>
+            <LogOut size={18} />
+          </button>
+        </div>
+      </div>
+
+      {/* Stats Dashboard */}
+      <div className={styles.dashboard}>
+        <div className={styles.statsGrid}>
+          <div className={`${styles.statsCard} ${styles.primary}`}>
+            <div className={styles.statsIcon}>
+              <ShoppingBag />
+            </div>
+            <div className={styles.statsContent}>
+              <h3>{products.length}</h3>
+              <p>Total Products</p>
+            </div>
+          </div>
+          <div className={`${styles.statsCard} ${styles.success}`}>
+            <div className={styles.statsIcon}>
+              <TrendingUp />
+            </div>
+            <div className={styles.statsContent}>
+              <h3>{products.filter(p => p.is_active).length}</h3>
+              <p>Active Products</p>
+            </div>
+          </div>
+          <div className={`${styles.statsCard} ${styles.warning}`}>
+            <div className={styles.statsIcon}>
+              <Star />
+            </div>
+            <div className={styles.statsContent}>
+              <h3>{products.filter(p => p.is_featured).length}</h3>
+              <p>Featured Items</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div className={styles.controls}>
+        <div className={styles.searchAndFilter}>
+          <div className={styles.searchBox}>
+            <Search size={20} />
+            <input
+              type="text"
+              placeholder="Search products..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          
+          <div className={styles.filterTabs}>
+            {["All", ...categories].map((cat) => (
+              <button
+                key={cat}
+                className={`${styles.filterTab} ${
+                  selectedCategory === cat ? styles.active : ""
+                }`}
+                onClick={() => setSelectedCategory(cat)}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+        
+        <button className={styles.addButton} onClick={() => navigate("/admin/new-product")}>
+          <Plus size={20} />
+          <span>Add Product</span>
         </button>
       </div>
-      <div className={styles.filterRow}>
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            className={`${styles.categoryButton} ${
-              selectedCategory === cat ? styles.activeCategory : ""
-            }`}
-            onClick={() => setSelectedCategory(cat)}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
-      {loading && <div className={styles.status}>Loading...</div>}
-      {error && <div className={styles.error}>{error}</div>}
 
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Category</th>
-            <th className={styles.hideMobile}>Price</th>
-            <th className={styles.hideMobile}>Stock</th>
-            <th>Status</th>
-            <th className={styles.hideMobile}>Sales</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredProducts.length === 0 && (
-            <tr>
-              <td colSpan="7" style={{ textAlign: "center" }}>
-                No products found.
-              </td>
-            </tr>
-          )}
-          {filteredProducts.map((prod) => (
-            <tr key={prod.id}>
-              <td>{prod.name}</td>
-              <td>{prod.category}</td>
-              <td className={styles.hideMobile}>₹{prod.price}</td>
-              <td className={styles.hideMobile}>{prod.stock}</td>
-              <td>
-                <span
-                  className={`${styles.statusBadge} ${
-                    prod.status === "Active"
-                      ? styles.statusActive
-                      : styles.statusInactive
-                  }`}
-                >
-                  {prod.status}
-                </span>
-              </td>
-              <td className={styles.hideMobile}>{prod.sales || 0}</td>
-              <td>
-                <button
-                  className={`${styles.actionButton} ${styles.editButton}`}
-                  title="Edit"
-                  onClick={() => navigate(`/admin/edit-product/${prod.id}`)}
-                >
-                  <Edit3 size={18} />
-                </button>
-                <button
-                  className={`${styles.actionButton} ${styles.deleteButton}`}
-                  title="Delete"
-                  onClick={() => handleDelete(prod.id)}
-                >
-                  <Trash2 size={18} />
-                </button>
-                <button
-                  className={`${styles.actionButton} ${styles.viewButton}`}
-                  title="View"
-                  onClick={() => navigate(`/product/${prod.id}`)}
-                >
-                  <Eye size={18} />
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* Loading and Error States */}
+      {loading && (
+        <div className={styles.loadingContainer}>
+          <div className={styles.spinner}></div>
+          <p>Loading products...</p>
+        </div>
+      )}
+      
+      {error && (
+        <div className={styles.errorContainer}>
+          <div className={styles.errorContent}>
+            <p>{error}</p>
+            <button onClick={() => setError("")}>×</button>
+          </div>
+        </div>
+      )}
+
+      {/* Products Table */}
+      <div className={styles.productsContainer}>
+        <div className={styles.tableContainer}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Category</th>
+                <th>Price</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredProducts.map((product) => (
+                <tr key={product.id} className={styles.tableRow}>
+                  <td>
+                    <div className={styles.productCell}>
+                      {product.images?.[0] && (
+                        <img src={product.images[0]} alt={product.name} className={styles.productImage} />
+                      )}
+                      <div className={styles.productDetails}>
+                        <div className={styles.productName}>{product.name}</div>
+                        <div className={styles.productId}>#{product.id}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span className={styles.categoryBadge}>{product.category}</span>
+                  </td>
+                  <td>
+                    <div className={styles.priceCell}>
+                      <span className={styles.currentPrice}>₹{product.price}</span>
+                      {product.original_price && (
+                        <span className={styles.originalPrice}>₹{product.original_price}</span>
+                      )}
+                    </div>
+                  </td>
+                  <td>
+                    <div className={styles.statusGroup}>
+                      <span className={`${styles.statusBadge} ${product.is_active ? styles.active : styles.inactive}`}>
+                        {product.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                      {product.is_featured && (
+                        <span className={`${styles.statusBadge} ${styles.featured}`}>
+                          <Star size={12} /> Featured
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td>
+                    <div className={styles.actionButtons}>
+                      <button
+                        className={`${styles.actionBtn} ${styles.view}`}
+                        onClick={() => handleView(product)}
+                        title="View Details"
+                      >
+                        <Eye size={16} />
+                      </button>
+                      <button
+                        className={`${styles.actionBtn} ${styles.edit}`}
+                        onClick={() => handleEdit(product)}
+                        title="Edit Product"
+                      >
+                        <Edit3 size={16} />
+                      </button>
+                      <button
+                        className={`${styles.actionBtn} ${styles.delete}`}
+                        onClick={() => handleDelete(product.id)}
+                        title="Delete Product"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {filteredProducts.length === 0 && !loading && (
+          <div className={styles.emptyState}>
+            <Package size={64} />
+            <h3>No products found</h3>
+            <p>Try adjusting your search or add your first product!</p>
+          </div>
+        )}
+      </div>
+
+      {/* Modals */}
+      {showProductModal && <ProductModal />}
+      {showEditModal && <EditModal />}
     </div>
   );
 }
