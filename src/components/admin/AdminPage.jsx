@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 
 const API_BASE = "https://boltfit-backend-r4no.onrender.com/api/v1";
-const IMGBB_API_KEY = "111466cad6108aa2657663cede57b1d3"; // Same as AddProductPage
+const IMGBB_API_KEY = "111466cad6108aa2657663cede57b1d3";
 const categories = ["Shirts", "T-Shirts", "Pants", "Trending"];
 const commonSizes = ["XS", "S", "M", "L", "XL", "XXL"];
 const commonColors = ["Red", "Blue", "Green", "Black", "White", "Gray", "Yellow", "Orange", "Purple", "Pink", "Brown", "Navy"];
@@ -38,16 +38,67 @@ export default function AdminPage() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Fetch all products from API
+  // Fetch all products from API with proper pagination
   const fetchProducts = async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}/products/?page=1&perpage=100`);
-      const data = await res.json();
-      setProducts(data.products || []);
+      let allProducts = [];
+      let page = 1;
+      let hasMore = true;
+
+      // Keep fetching pages until we get all products
+      while (hasMore) {
+        const res = await fetch(`${API_BASE}/products/?page=${page}&perpage=100`);
+        
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        
+        const data = await res.json();
+        
+        console.log(`Page ${page} Response:`, data);
+        console.log(`Fetched page ${page}:`, data.products?.length || 0, 'products');
+        
+        if (data.products && Array.isArray(data.products) && data.products.length > 0) {
+          allProducts = [...allProducts, ...data.products];
+          
+          // Check pagination metadata if available
+          if (data.pagination) {
+            console.log('Pagination info:', data.pagination);
+            // Check if there's a next page using pagination metadata
+            hasMore = data.pagination.hasNextPage || 
+                     (data.pagination.currentPage < data.pagination.totalPages) ||
+                     (page * 100 < data.pagination.total);
+          } else if (data.total) {
+            // Alternative: check if total count is provided
+            console.log('Total products in DB:', data.total);
+            hasMore = allProducts.length < data.total;
+          } else {
+            // Fallback: If we got less than requested, this is the last page
+            hasMore = data.products.length >= 100;
+          }
+          
+          if (hasMore) {
+            page++;
+          }
+        } else {
+          // No more products to fetch
+          hasMore = false;
+        }
+        
+        // Safety check: prevent infinite loops
+        if (page > 100) {
+          console.warn('Stopped at page 100 to prevent infinite loop');
+          hasMore = false;
+        }
+      }
+      
+      console.log(`✅ Total products fetched: ${allProducts.length}`);
+      setProducts(allProducts);
     } catch (e) {
-      setError("Failed to fetch products.");
+      console.error('Error fetching products:', e);
+      setError("Failed to fetch products: " + e.message);
     }
     setLoading(false);
   };
@@ -183,7 +234,7 @@ export default function AdminPage() {
     </div>
   );
 
-  // Edit Modal Component - Separated to prevent re-renders
+  // Edit Modal Component
   const EditModal = () => {
     const [editForm, setEditForm] = useState({});
     const [selectedImages, setSelectedImages] = useState([]);
