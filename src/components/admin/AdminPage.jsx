@@ -49,7 +49,7 @@ export default function AdminPage() {
 
       // Keep fetching pages until we get all products
       while (hasMore) {
-        const res = await fetch(`${API_BASE}/products/?page=${page}&perpage=100`);
+        const res = await fetch(`${API_BASE}/products/?page=${page}&per_page=100`);
         
         if (!res.ok) {
           throw new Error(`HTTP error! status: ${res.status}`);
@@ -66,16 +66,13 @@ export default function AdminPage() {
           // Check pagination metadata if available
           if (data.pagination) {
             console.log('Pagination info:', data.pagination);
-            // Check if there's a next page using pagination metadata
             hasMore = data.pagination.hasNextPage || 
                      (data.pagination.currentPage < data.pagination.totalPages) ||
                      (page * 100 < data.pagination.total);
           } else if (data.total) {
-            // Alternative: check if total count is provided
             console.log('Total products in DB:', data.total);
             hasMore = allProducts.length < data.total;
           } else {
-            // Fallback: If we got less than requested, this is the last page
             hasMore = data.products.length >= 100;
           }
           
@@ -83,7 +80,6 @@ export default function AdminPage() {
             page++;
           }
         } else {
-          // No more products to fetch
           hasMore = false;
         }
         
@@ -144,97 +140,112 @@ export default function AdminPage() {
     navigate('/login');
   };
 
-  // Filtering logic
+  // Filtering logic - updated for multi-category support
   const filteredProducts = products.filter(product => {
-    const matchesCategory = selectedCategory === "All" || product.category === selectedCategory;
+    // Handle both old single category and new multi-category format
+    const productCategories = Array.isArray(product.categories) 
+      ? product.categories 
+      : (product.category ? [product.category] : []);
+    
+    const matchesCategory = selectedCategory === "All" || productCategories.includes(selectedCategory);
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.category.toLowerCase().includes(searchTerm.toLowerCase());
+                         productCategories.some(cat => cat.toLowerCase().includes(searchTerm.toLowerCase()));
     return matchesCategory && matchesSearch;
   });
 
   // Mobile Product Card Component
-  const MobileProductCard = ({ product }) => (
-    <div className={styles.mobileCard}>
-      <div className={styles.mobileCardHeader}>
-        <div className={styles.mobileCardLeft}>
-          {product.images?.[0] && (
-            <img src={product.images[0]} alt={product.name} className={styles.mobileCardImage} />
-          )}
-          <div className={styles.mobileCardInfo}>
-            <h4 className={styles.mobileCardTitle}>{product.name}</h4>
-            <p className={styles.mobileCardId}>#{product.id}</p>
-            <span className={styles.mobileCardCategory}>{product.category}</span>
-          </div>
-        </div>
-        <div className={styles.mobileCardActions}>
-          <button
-            type="button"
-            className={`${styles.mobileActionBtn} ${styles.view}`}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleView(product);
-            }}
-            title="View"
-          >
-            <Eye size={16} />
-          </button>
-          <button
-            type="button"
-            className={`${styles.mobileActionBtn} ${styles.edit}`}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleEdit(product);
-            }}
-            title="Edit"
-          >
-            <Edit3 size={16} />
-          </button>
-          <button
-            type="button"
-            className={`${styles.mobileActionBtn} ${styles.delete}`}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleDelete(product.id);
-            }}
-            title="Delete"
-          >
-            <Trash2 size={16} />
-          </button>
-        </div>
-      </div>
-      
-      <div className={styles.mobileCardBody}>
-        <div className={styles.mobileCardRow}>
-          <span className={styles.mobileCardLabel}>Price:</span>
-          <div className={styles.mobileCardPrice}>
-            <span className={styles.currentPrice}>₹{product.price}</span>
-            {product.original_price && (
-              <span className={styles.originalPrice}>₹{product.original_price}</span>
+  const MobileProductCard = ({ product }) => {
+    const productCategories = Array.isArray(product.categories) 
+      ? product.categories 
+      : (product.category ? [product.category] : []);
+
+    return (
+      <div className={styles.mobileCard}>
+        <div className={styles.mobileCardHeader}>
+          <div className={styles.mobileCardLeft}>
+            {product.images?.[0] && (
+              <img src={product.images[0]} alt={product.name} className={styles.mobileCardImage} />
             )}
+            <div className={styles.mobileCardInfo}>
+              <h4 className={styles.mobileCardTitle}>{product.name}</h4>
+              <p className={styles.mobileCardId}>#{product.id}</p>
+              <div className={styles.categoryTags}>
+                {productCategories.map((cat, idx) => (
+                  <span key={idx} className={styles.mobileCardCategory}>{cat}</span>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className={styles.mobileCardActions}>
+            <button
+              type="button"
+              className={`${styles.mobileActionBtn} ${styles.view}`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleView(product);
+              }}
+              title="View"
+            >
+              <Eye size={16} />
+            </button>
+            <button
+              type="button"
+              className={`${styles.mobileActionBtn} ${styles.edit}`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleEdit(product);
+              }}
+              title="Edit"
+            >
+              <Edit3 size={16} />
+            </button>
+            <button
+              type="button"
+              className={`${styles.mobileActionBtn} ${styles.delete}`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDelete(product.id);
+              }}
+              title="Delete"
+            >
+              <Trash2 size={16} />
+            </button>
           </div>
         </div>
         
-        <div className={styles.mobileCardRow}>
-          <span className={styles.mobileCardLabel}>Status:</span>
-          <div className={styles.mobileCardStatus}>
-            <span className={`${styles.statusBadge} ${product.is_active ? styles.active : styles.inactive}`}>
-              {product.is_active ? 'Active' : 'Inactive'}
-            </span>
-            {product.is_featured && (
-              <span className={`${styles.statusBadge} ${styles.featured}`}>
-                <Star size={10} /> Featured
+        <div className={styles.mobileCardBody}>
+          <div className={styles.mobileCardRow}>
+            <span className={styles.mobileCardLabel}>Price:</span>
+            <div className={styles.mobileCardPrice}>
+              <span className={styles.currentPrice}>₹{product.price}</span>
+              {product.original_price && (
+                <span className={styles.originalPrice}>₹{product.original_price}</span>
+              )}
+            </div>
+          </div>
+          
+          <div className={styles.mobileCardRow}>
+            <span className={styles.mobileCardLabel}>Status:</span>
+            <div className={styles.mobileCardStatus}>
+              <span className={`${styles.statusBadge} ${product.is_active ? styles.active : styles.inactive}`}>
+                {product.is_active ? 'Active' : 'Inactive'}
               </span>
-            )}
+              {product.is_featured && (
+                <span className={`${styles.statusBadge} ${styles.featured}`}>
+                  <Star size={10} /> Featured
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
-  // Edit Modal Component
+  // Edit Modal Component with Multi-Category Support
   const EditModal = () => {
     const [editForm, setEditForm] = useState({});
     const [selectedImages, setSelectedImages] = useState([]);
@@ -245,13 +256,18 @@ export default function AdminPage() {
     // Initialize form when modal opens
     useEffect(() => {
       if (selectedProduct && showEditModal) {
+        // Handle both old single category and new multi-category format
+        const productCategories = Array.isArray(selectedProduct.categories) 
+          ? selectedProduct.categories 
+          : (selectedProduct.category ? [selectedProduct.category] : []);
+
         setEditForm({
           id: selectedProduct.id,
           name: selectedProduct.name || "",
           description: selectedProduct.description || "",
           price: selectedProduct.price || 0,
           original_price: selectedProduct.original_price || "",
-          category: selectedProduct.category || "Shirts",
+          categories: productCategories,
           brand: selectedProduct.brand || "BOLT FIT",
           material: selectedProduct.material || "",
           is_active: selectedProduct.is_active || false,
@@ -265,6 +281,23 @@ export default function AdminPage() {
         setUploadProgress({});
       }
     }, [selectedProduct, showEditModal]);
+
+    const toggleCategory = (category) => {
+      const currentCategories = editForm.categories || [];
+      if (currentCategories.includes(category)) {
+        // Remove category
+        setEditForm({
+          ...editForm,
+          categories: currentCategories.filter(c => c !== category)
+        });
+      } else {
+        // Add category
+        setEditForm({
+          ...editForm,
+          categories: [...currentCategories, category]
+        });
+      }
+    };
 
     const handleImageChange = (e) => {
       const files = Array.from(e.target.files);
@@ -371,6 +404,12 @@ export default function AdminPage() {
         e.stopPropagation();
       }
 
+      // Validation
+      if (!editForm.categories || editForm.categories.length === 0) {
+        setError("Please select at least one category");
+        return;
+      }
+
       try {
         setUploading(true);
         setError("");
@@ -396,7 +435,7 @@ export default function AdminPage() {
         formData.append('description', editForm.description);
         formData.append('price', editForm.price);
         formData.append('original_price', editForm.original_price || '');
-        formData.append('category', editForm.category);
+        formData.append('categories', editForm.categories.join(', ')); // Send as comma-separated
         formData.append('brand', editForm.brand);
         formData.append('material', editForm.material);
         formData.append('is_active', editForm.is_active);
@@ -418,7 +457,7 @@ export default function AdminPage() {
           await fetchProducts();
         } else {
           const errorData = await response.json().catch(() => ({}));
-          setError(errorData.message || "Failed to update product.");
+          setError(errorData.detail || errorData.message || "Failed to update product.");
         }
       } catch (err) {
         console.error('Update error:', err);
@@ -468,17 +507,34 @@ export default function AdminPage() {
                       required
                     />
                   </div>
-                  <div className={styles.formGroup}>
-                    <label>Category *</label>
-                    <select
-                      value={editForm.category || "Shirts"}
-                      onChange={(e) => setEditForm({...editForm, category: e.target.value})}
-                      required
-                    >
-                      {categories.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
+                  <div className={styles.formGroup} style={{gridColumn: '1/-1'}}>
+                    <label>Categories * (Select Multiple)</label>
+                    <div className={styles.categorySelector}>
+                      {categories.map(cat => {
+                        const isSelected = editForm.categories?.includes(cat);
+                        return (
+                          <button
+                            key={cat}
+                            type="button"
+                            className={`${styles.categoryToggle} ${isSelected ? styles.selected : ''}`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              toggleCategory(cat);
+                            }}
+                          >
+                            {cat}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {editForm.categories && editForm.categories.length > 0 && (
+                      <p className={styles.selectedCategoriesText}>
+                        Selected: {editForm.categories.join(', ')}
+                      </p>
+                    )}
+                    {(!editForm.categories || editForm.categories.length === 0) && (
+                      <p className={styles.errorText}>Please select at least one category</p>
+                    )}
                   </div>
                   <div className={styles.formGroup} style={{gridColumn: '1/-1'}}>
                     <label>Description *</label>
@@ -732,7 +788,7 @@ export default function AdminPage() {
               <button 
                 type="submit"
                 className={styles.saveBtn}
-                disabled={uploading}
+                disabled={uploading || !editForm.categories || editForm.categories.length === 0}
               >
                 {uploading ? (
                   <>
@@ -754,41 +810,52 @@ export default function AdminPage() {
   };
 
   // View Modal
-  const ProductModal = () => (
-    <div className={styles.modalOverlay} onClick={() => setShowProductModal(false)}>
-      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-        <div className={styles.modalHeader}>
-          <h3>Product Details</h3>
-          <button type="button" onClick={() => setShowProductModal(false)}>×</button>
-        </div>
-        <div className={styles.modalContent}>
-          {selectedProduct && (
-            <>
-              <div className={styles.productImages}>
-                {selectedProduct.images?.length > 0 ? (
-                  selectedProduct.images.map((img, index) => (
-                    <img key={index} src={img} alt={selectedProduct.name} />
-                  ))
-                ) : (
-                  <div className={styles.noImage}>No Images</div>
-                )}
-              </div>
-              <div className={styles.productInfo}>
-                <h4>{selectedProduct.name}</h4>
-                <p className={styles.description}>{selectedProduct.description || "No description available"}</p>
-                <div className={styles.priceInfo}>
-                  <span className={styles.price}>₹{selectedProduct.price}</span>
-                  {selectedProduct.original_price && (
-                    <span className={styles.originalPrice}>₹{selectedProduct.original_price}</span>
+  const ProductModal = () => {
+    const productCategories = selectedProduct && Array.isArray(selectedProduct.categories) 
+      ? selectedProduct.categories 
+      : (selectedProduct?.category ? [selectedProduct.category] : []);
+
+    return (
+      <div className={styles.modalOverlay} onClick={() => setShowProductModal(false)}>
+        <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+          <div className={styles.modalHeader}>
+            <h3>Product Details</h3>
+            <button type="button" onClick={() => setShowProductModal(false)}>×</button>
+          </div>
+          <div className={styles.modalContent}>
+            {selectedProduct && (
+              <>
+                <div className={styles.productImages}>
+                  {selectedProduct.images?.length > 0 ? (
+                    selectedProduct.images.map((img, index) => (
+                      <img key={index} src={img} alt={selectedProduct.name} />
+                    ))
+                  ) : (
+                    <div className={styles.noImage}>No Images</div>
                   )}
                 </div>
-              </div>
-            </>
-          )}
+                <div className={styles.productInfo}>
+                  <h4>{selectedProduct.name}</h4>
+                  <div className={styles.categoryTags}>
+                    {productCategories.map((cat, idx) => (
+                      <span key={idx} className={styles.categoryBadge}>{cat}</span>
+                    ))}
+                  </div>
+                  <p className={styles.description}>{selectedProduct.description || "No description available"}</p>
+                  <div className={styles.priceInfo}>
+                    <span className={styles.price}>₹{selectedProduct.price}</span>
+                    {selectedProduct.original_price && (
+                      <span className={styles.originalPrice}>₹{selectedProduct.original_price}</span>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className={styles.container}>
@@ -917,79 +984,89 @@ export default function AdminPage() {
               <thead>
                 <tr>
                   <th>Product</th>
-                  <th>Category</th>
+                  <th>Categories</th>
                   <th>Price</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredProducts.map((product) => (
-                  <tr key={product.id} className={styles.tableRow}>
-                    <td>
-                      <div className={styles.productCell}>
-                        {product.images?.[0] && (
-                          <img src={product.images[0]} alt={product.name} className={styles.productImage} />
-                        )}
-                        <div className={styles.productDetails}>
-                          <div className={styles.productName}>{product.name}</div>
-                          <div className={styles.productId}>#{product.id}</div>
+                {filteredProducts.map((product) => {
+                  const productCategories = Array.isArray(product.categories) 
+                    ? product.categories 
+                    : (product.category ? [product.category] : []);
+
+                  return (
+                    <tr key={product.id} className={styles.tableRow}>
+                      <td>
+                        <div className={styles.productCell}>
+                          {product.images?.[0] && (
+                            <img src={product.images[0]} alt={product.name} className={styles.productImage} />
+                          )}
+                          <div className={styles.productDetails}>
+                            <div className={styles.productName}>{product.name}</div>
+                            <div className={styles.productId}>#{product.id}</div>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td>
-                      <span className={styles.categoryBadge}>{product.category}</span>
-                    </td>
-                    <td>
-                      <div className={styles.priceCell}>
-                        <span className={styles.currentPrice}>₹{product.price}</span>
-                        {product.original_price && (
-                          <span className={styles.originalPrice}>₹{product.original_price}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td>
-                      <div className={styles.statusGroup}>
-                        <span className={`${styles.statusBadge} ${product.is_active ? styles.active : styles.inactive}`}>
-                          {product.is_active ? 'Active' : 'Inactive'}
-                        </span>
-                        {product.is_featured && (
-                          <span className={`${styles.statusBadge} ${styles.featured}`}>
-                            <Star size={12} /> Featured
+                      </td>
+                      <td>
+                        <div className={styles.categoryTags}>
+                          {productCategories.map((cat, idx) => (
+                            <span key={idx} className={styles.categoryBadge}>{cat}</span>
+                          ))}
+                        </div>
+                      </td>
+                      <td>
+                        <div className={styles.priceCell}>
+                          <span className={styles.currentPrice}>₹{product.price}</span>
+                          {product.original_price && (
+                            <span className={styles.originalPrice}>₹{product.original_price}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <div className={styles.statusGroup}>
+                          <span className={`${styles.statusBadge} ${product.is_active ? styles.active : styles.inactive}`}>
+                            {product.is_active ? 'Active' : 'Inactive'}
                           </span>
-                        )}
-                      </div>
-                    </td>
-                    <td>
-                      <div className={styles.actionButtons}>
-                        <button
-                          type="button"
-                          className={`${styles.actionBtn} ${styles.view}`}
-                          onClick={() => handleView(product)}
-                          title="View Details"
-                        >
-                          <Eye size={16} />
-                        </button>
-                        <button
-                          type="button"
-                          className={`${styles.actionBtn} ${styles.edit}`}
-                          onClick={() => handleEdit(product)}
-                          title="Edit Product"
-                        >
-                          <Edit3 size={16} />
-                        </button>
-                        <button
-                          type="button"
-                          className={`${styles.actionBtn} ${styles.delete}`}
-                          onClick={() => handleDelete(product.id)}
-                          title="Delete Product"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          {product.is_featured && (
+                            <span className={`${styles.statusBadge} ${styles.featured}`}>
+                              <Star size={12} /> Featured
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <div className={styles.actionButtons}>
+                          <button
+                            type="button"
+                            className={`${styles.actionBtn} ${styles.view}`}
+                            onClick={() => handleView(product)}
+                            title="View Details"
+                          >
+                            <Eye size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            className={`${styles.actionBtn} ${styles.edit}`}
+                            onClick={() => handleEdit(product)}
+                            title="Edit Product"
+                          >
+                            <Edit3 size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            className={`${styles.actionBtn} ${styles.delete}`}
+                            onClick={() => handleDelete(product.id)}
+                            title="Delete Product"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

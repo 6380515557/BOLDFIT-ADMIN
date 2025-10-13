@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-
 import {
   TextField,
   Button,
@@ -10,19 +9,16 @@ import {
   Box,
   Paper,
   Grid,
-  MenuItem,
   CircularProgress,
   Snackbar,
   Alert,
   IconButton,
 } from "@mui/material";
-
 import {
   AddPhotoAlternate,
   Delete,
   CloudUpload,
 } from "@mui/icons-material";
-
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { styled } from "@mui/system";
@@ -42,7 +38,7 @@ const initialForm = {
   description: "",
   price: "",
   original_price: "",
-  category: "",
+  categories: [],
   material: "",
   brand: "BOLT FIT",
   sizes: "",
@@ -89,7 +85,7 @@ const HeadingTypography = styled(Typography)(({ theme }) => ({
   },
 }));
 
-const SizeToggleButton = styled("button")(({ selected, theme }) => ({
+const ToggleButton = styled("button")(({ selected, theme }) => ({
   padding: "10px 22px",
   margin: "6px 8px 10px 0",
   borderRadius: 30,
@@ -152,6 +148,17 @@ export default function AddProductPage() {
     setFormData((f) => ({ ...f, colors: updatedColors.join(", ") }));
   };
 
+  const toggleCategory = (category) => {
+    setFormData((f) => {
+      const currentCategories = f.categories || [];
+      if (currentCategories.includes(category)) {
+        return { ...f, categories: currentCategories.filter((c) => c !== category) };
+      } else {
+        return { ...f, categories: [...currentCategories, category] };
+      }
+    });
+  };
+
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       setSnack({ open: true, type: "error", msg: "You must be logged in as an admin to access this page." });
@@ -164,7 +171,7 @@ export default function AddProductPage() {
     if (!formData.name.trim()) errors.push("Product name is required");
     if (!formData.description.trim()) errors.push("Description is required");
     if (!formData.price || formData.price <= 0) errors.push("Valid price is required");
-    if (!formData.category) errors.push("Category is required");
+    if (!formData.categories || formData.categories.length === 0) errors.push("At least one category is required");
     if (imageUrls.length === 0) errors.push("At least one image is required");
     if (formData.original_price && Number(formData.original_price) <= Number(formData.price)) {
       errors.push("Original price should be higher than current price");
@@ -264,7 +271,7 @@ export default function AddProductPage() {
       form.append("description", formData.description.trim());
       form.append("price", Number(formData.price));
       if (formData.original_price?.trim()) form.append("original_price", Number(formData.original_price));
-      form.append("category", formData.category);
+      form.append("categories", formData.categories.join(", "));
       form.append("brand", formData.brand.trim());
       if (formData.material?.trim()) form.append("material", formData.material.trim());
       form.append("is_featured", formData.is_featured);
@@ -333,21 +340,13 @@ export default function AddProductPage() {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
-                label="Category"
-                name="category"
-                select
-                value={formData.category}
+                label="Brand"
+                name="brand"
+                value={formData.brand}
                 onChange={handleChange}
                 fullWidth
-                required
                 sx={{ backgroundColor: "white" }}
-              >
-                {categories.map((category) => (
-                  <MenuItem key={category} value={category}>
-                    {category}
-                  </MenuItem>
-                ))}
-              </TextField>
+              />
             </Grid>
             <Grid item xs={12}>
               <TextField
@@ -385,12 +384,50 @@ export default function AddProductPage() {
                 sx={{ backgroundColor: "white" }}
               />
             </Grid>
+            <Grid item xs={12}>
+              <TextField
+                label="Material"
+                name="material"
+                value={formData.material}
+                onChange={handleChange}
+                fullWidth
+                sx={{ backgroundColor: "white" }}
+                placeholder="e.g., 100% Cotton, Polyester Blend"
+              />
+            </Grid>
           </Grid>
           {discountPercentage > 0 && (
             <Typography variant="body2" color="secondary" sx={{ marginTop: 1, fontWeight: "bold" }}>
               Discount: {discountPercentage}%
             </Typography>
           )}
+
+          <Box sx={{ marginTop: 4 }}>
+            <Typography variant="h6" gutterBottom sx={{ mb: { xs: 1, sm: 2 } }}>
+              Categories (Select Multiple)
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              You can select multiple categories. For example, a product can be both "Shirts" and "Trending".
+            </Typography>
+            <Box>
+              {categories.map((category) => (
+                <ToggleButton
+                  key={category}
+                  selected={formData.categories.includes(category)}
+                  type="button"
+                  onClick={() => toggleCategory(category)}
+                  aria-pressed={formData.categories.includes(category)}
+                >
+                  {category}
+                </ToggleButton>
+              ))}
+            </Box>
+            {formData.categories.length > 0 && (
+              <Typography variant="body2" sx={{ mt: 2, fontWeight: "bold", color: "#0052cc" }}>
+                Selected: {formData.categories.join(", ")}
+              </Typography>
+            )}
+          </Box>
 
           <Box sx={{ marginTop: 4 }}>
             <Typography variant="h6" gutterBottom sx={{ mb: { xs: 1, sm: 2 } }}>
@@ -401,7 +438,7 @@ export default function AddProductPage() {
             </Typography>
             <Box>
               {commonSizes.map((size) => (
-                <SizeToggleButton
+                <ToggleButton
                   key={size}
                   selected={selectedSizes.includes(size)}
                   type="button"
@@ -409,7 +446,7 @@ export default function AddProductPage() {
                   aria-pressed={selectedSizes.includes(size)}
                 >
                   {size}
-                </SizeToggleButton>
+                </ToggleButton>
               ))}
             </Box>
             <TextField
@@ -427,7 +464,7 @@ export default function AddProductPage() {
             </Typography>
             <Box>
               {commonColors.map((color) => (
-                <SizeToggleButton
+                <ToggleButton
                   key={color}
                   selected={selectedColors.includes(color)}
                   type="button"
@@ -435,7 +472,7 @@ export default function AddProductPage() {
                   aria-pressed={selectedColors.includes(color)}
                 >
                   {color}
-                </SizeToggleButton>
+                </ToggleButton>
               ))}
             </Box>
             <TextField
@@ -477,7 +514,7 @@ export default function AddProductPage() {
                 onClick={uploadImagesToImgBB}
                 disabled={uploading}
                 startIcon={<CloudUpload />}
-                sx={{ mb: 2 }}
+                sx={{ mb: 2, ml: 2 }}
               >
                 {uploading ? "Uploading to ImgBB..." : "Upload Images to ImgBB"}
               </GradientButton>
