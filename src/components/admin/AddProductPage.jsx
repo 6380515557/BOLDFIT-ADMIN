@@ -28,6 +28,7 @@ const IMGBB_API_KEY = "111466cad6108aa2657663cede57b1d3";
 
 const categories = ["Shirts", "T-Shirts", "Pants", "Trending"];
 const commonSizes = ["XS", "S", "M", "L", "XL", "XXL"];
+const waistSizes = ["30", "32", "34", "36", "38"];
 const commonColors = [
   "Red", "Blue", "Green", "Black", "White", "Gray",
   "Yellow", "Orange", "Purple", "Pink", "Brown", "Navy",
@@ -433,10 +434,12 @@ export default function AddProductPage() {
             <Typography variant="h6" gutterBottom sx={{ mb: { xs: 1, sm: 2 } }}>
               Product Details
             </Typography>
-            <Typography variant="body2" sx={{ mb: 1 }}>
-              Select Sizes:
+            
+            {/* Clothing Sizes Section */}
+            <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>
+              Clothing Sizes (XS - XXL):
             </Typography>
-            <Box>
+            <Box sx={{ mb: 3 }}>
               {commonSizes.map((size) => (
                 <ToggleButton
                   key={size}
@@ -449,6 +452,25 @@ export default function AddProductPage() {
                 </ToggleButton>
               ))}
             </Box>
+
+            {/* Waist Sizes Section */}
+            <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>
+              Waist Sizes (30 - 38):
+            </Typography>
+            <Box sx={{ mb: 2 }}>
+              {waistSizes.map((size) => (
+                <ToggleButton
+                  key={size}
+                  selected={selectedSizes.includes(size)}
+                  type="button"
+                  onClick={() => toggleSize(size)}
+                  aria-pressed={selectedSizes.includes(size)}
+                >
+                  {size}
+                </ToggleButton>
+              ))}
+            </Box>
+
             <TextField
               label="Sizes"
               name="sizes"
@@ -456,10 +478,10 @@ export default function AddProductPage() {
               onChange={handleChange}
               fullWidth
               sx={{ backgroundColor: "white", mb: 3, mt: 2 }}
-              placeholder="Comma separated, e.g. S, M, L"
+              placeholder="Comma separated, e.g. S, M, L, 32, 34"
             />
 
-            <Typography variant="body2" sx={{ mb: 1 }}>
+            <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>
               Select Colors:
             </Typography>
             <Box>
